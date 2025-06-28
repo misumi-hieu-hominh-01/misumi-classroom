@@ -4,10 +4,12 @@ import { Canvas } from "@react-three/fiber";
 import { OrbitControls, useGLTF, Environment } from "@react-three/drei";
 import { Suspense, useState } from "react";
 import { Vector3 } from "three";
-import StickMan from "../character";
-import ThirdPersonCamera from "../camera";
+import StickMan, { Teacher } from "../character";
+import { ThirdPersonCamera, FirstPersonCamera } from "../camera";
 import DynamicLighting from "./DynamicLighting";
 import TimeDisplay from "../ui";
+import { renderCollisionBoxes } from "./CollisionSystem";
+import CollisionHelper, { PreviewCollisionBox } from "./CollisionHelper";
 
 interface ClassroomModelProps {
   position?: [number, number, number];
@@ -23,27 +25,26 @@ function ClassroomModel({
   return <primitive object={scene} position={position} scale={scale} />;
 }
 
-function LoadingSpinner() {
-  return (
-    <div className="flex items-center justify-center h-full">
-      <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-gray-900"></div>
-    </div>
-  );
-}
-
 export default function ClassroomScene() {
   const [stickmanPosition, setStickmanPosition] = useState(
     new Vector3(0, 0, 0)
   );
   const [stickmanRotation, setStickmanRotation] = useState(0);
   const [isStickmanMoving, setIsStickmanMoving] = useState(false);
-  const [cameraMode, setCameraMode] = useState<"third-person" | "free">(
-    "third-person"
-  );
+  const [cameraMode, setCameraMode] = useState<
+    "first-person" | "third-person" | "free"
+  >("third-person");
 
-  // Dynamic lighting controls
-  const [useFakeTime, setUseFakeTime] = useState(true); // Default to demo mode
-  const [timeSpeed, setTimeSpeed] = useState(24); // 24x speed for quick demo
+  // Debug collision boxes
+  const [showCollisionBoxes, setShowCollisionBoxes] = useState(false);
+
+  // Preview collision box state
+  const [showPreviewBox, setShowPreviewBox] = useState(true);
+  const [previewBoxSize, setPreviewBoxSize] = useState({
+    width: 2,
+    height: 2,
+    depth: 2,
+  });
 
   const handleStickmanPositionChange = (
     position: Vector3,
@@ -55,6 +56,15 @@ export default function ClassroomScene() {
     setIsStickmanMoving(isMoving);
   };
 
+  // Cycle camera modes
+  const cycleCameraMode = () => {
+    setCameraMode((mode) => {
+      if (mode === "first-person") return "third-person";
+      if (mode === "third-person") return "free";
+      return "first-person";
+    });
+  };
+
   return (
     <div className="w-full h-screen">
       <Canvas
@@ -64,7 +74,7 @@ export default function ClassroomScene() {
       >
         <Suspense fallback={null}>
           {/* Dynamic Lighting System */}
-          <DynamicLighting useFakeTime={useFakeTime} timeSpeed={timeSpeed} />
+          <DynamicLighting />
 
           {/* Environment */}
           <Environment preset="studio" environmentIntensity={0.3} />
@@ -72,23 +82,55 @@ export default function ClassroomScene() {
           {/* Classroom Model - Phóng to 3x */}
           <ClassroomModel scale={3} />
 
+          {/* Debug: Collision Boxes */}
+          {showCollisionBoxes && renderCollisionBoxes()}
+
+          {/* Preview Collision Box */}
+          {showPreviewBox && (
+            <PreviewCollisionBox
+              position={stickmanPosition}
+              size={previewBoxSize}
+            />
+          )}
+
           <StickMan
             position={[0, 0, 0]}
             scale={0.9}
+            visible={cameraMode !== "first-person"}
             onPositionChange={handleStickmanPositionChange}
           />
 
+          {/* Teacher - Static character with talk animation */}
+          <Teacher
+            position={[3, -0.7, -12.08]} // Center front of classroom
+            scale={0.9}
+            rotation={[0, -1.5, 0]} // Face towards students (default forward)
+          />
+
           {/* Camera System */}
-          {cameraMode === "third-person" ? (
+          {cameraMode === "first-person" && (
+            <FirstPersonCamera
+              target={stickmanPosition}
+              targetRotation={stickmanRotation}
+              eyeHeight={5}
+              sensitivity={0.002}
+              isMoving={isStickmanMoving}
+              defaultPitch={-0.15}
+            />
+          )}
+
+          {cameraMode === "third-person" && (
             <ThirdPersonCamera
               target={stickmanPosition}
               targetRotation={stickmanRotation}
-              distance={7}
+              distance={6}
               height={6}
               smoothness={0.1}
               isMoving={isStickmanMoving}
             />
-          ) : (
+          )}
+
+          {cameraMode === "free" && (
             <OrbitControls
               enablePan={true}
               enableZoom={true}
@@ -101,13 +143,8 @@ export default function ClassroomScene() {
         </Suspense>
       </Canvas>
 
-      {/* Time Display & Lighting Controls */}
-      <TimeDisplay
-        useFakeTime={useFakeTime}
-        timeSpeed={timeSpeed}
-        onToggleFakeTime={() => setUseFakeTime(!useFakeTime)}
-        onTimeSpeedChange={setTimeSpeed}
-      />
+      {/* Time Display */}
+      <TimeDisplay />
 
       {/* Controls UI */}
       <div className="absolute top-4 left-4 z-10 bg-white/90 backdrop-blur-sm rounded-lg p-4 shadow-lg max-w-sm">
@@ -129,39 +166,79 @@ export default function ClassroomScene() {
             <div>
               <strong>Camera:</strong>
               <div className="text-xs mt-1 mb-2">
-                • Chuột phải + kéo: Xoay cam
-                <br />• Di chuyển: Reset cam
+                {cameraMode === "first-person" && (
+                  <>
+                    • Chuột trái + kéo: Nhìn quanh
+                    <br />• Góc nhìn thứ nhất
+                  </>
+                )}
+                {cameraMode === "third-person" && (
+                  <>
+                    • Chuột phải + kéo: Xoay cam
+                    <br />• Di chuyển: Reset cam
+                  </>
+                )}
+                {cameraMode === "free" && (
+                  <>
+                    • Chuột: Xoay, zoom
+                    <br />• Camera tự do
+                  </>
+                )}
               </div>
               <button
-                onClick={() =>
-                  setCameraMode((mode) =>
-                    mode === "third-person" ? "free" : "third-person"
-                  )
-                }
+                onClick={cycleCameraMode}
                 className="block w-full px-2 py-1 bg-blue-500 text-white text-xs rounded hover:bg-blue-600 transition-colors"
               >
-                {cameraMode === "third-person" ? "Third Person" : "Free Cam"}
+                {cameraMode === "first-person" && "First Person"}
+                {cameraMode === "third-person" && "Third Person"}
+                {cameraMode === "free" && "Free Cam"}
               </button>
               <div className="text-xs mt-1 text-gray-500">
                 Tank-style controls
               </div>
             </div>
           </div>
+
+          {/* Debug Section */}
+          <div className="border-t pt-2 mt-3">
+            <strong>Debug:</strong>
+            <div className="grid grid-cols-1 gap-1 mt-1">
+              <button
+                onClick={() => setShowCollisionBoxes(!showCollisionBoxes)}
+                className={`w-full px-2 py-1 text-xs rounded transition-colors ${
+                  showCollisionBoxes
+                    ? "bg-red-500 text-white hover:bg-red-600"
+                    : "bg-gray-500 text-white hover:bg-gray-600"
+                }`}
+              >
+                {showCollisionBoxes
+                  ? "Ẩn Collision Boxes"
+                  : "Hiện Collision Boxes"}
+              </button>
+
+              <button
+                onClick={() => setShowPreviewBox(!showPreviewBox)}
+                className={`w-full px-2 py-1 text-xs rounded transition-colors ${
+                  showPreviewBox
+                    ? "bg-gray-800 text-white hover:bg-gray-900"
+                    : "bg-gray-500 text-white hover:bg-gray-600"
+                }`}
+              >
+                {showPreviewBox ? "Ẩn Preview Box" : "Hiện Preview Box"}
+              </button>
+            </div>
+          </div>
         </div>
       </div>
 
-      {/* Position indicator */}
-      <div className="absolute bottom-4 right-4 z-10 bg-black/70 text-white px-3 py-1 rounded text-sm">
-        Position: ({stickmanPosition.x.toFixed(1)},{" "}
-        {stickmanPosition.y.toFixed(1)}, {stickmanPosition.z.toFixed(1)})
-      </div>
-
-      {/* Loading overlay */}
-      <Suspense fallback={<LoadingSpinner />} />
+      {/* Collision Helper */}
+      <CollisionHelper
+        characterPosition={stickmanPosition}
+        onPreviewSizeChange={setPreviewBoxSize}
+      />
     </div>
   );
 }
 
-// Preload the GLB models
+// Preload the classroom model
 useGLTF.preload("/3d_source/japanese_classroom.glb");
-useGLTF.preload("/animation/walking.glb");

@@ -13,10 +13,101 @@ interface ThirdPersonCameraProps {
   isMoving?: boolean;
 }
 
+// Classroom boundaries (dựa trên scale 3x)
+const CLASSROOM_BOUNDS = {
+  minX: -34,
+  maxX: 5,
+  minZ: -26,
+  maxZ: 1,
+  minY: -3,
+  maxY: 15, // Cho phép camera cao hơn
+};
+
+// Kiểm tra xem vị trí có trong classroom không
+function isInsideClassroom(position: Vector3): boolean {
+  return (
+    position.x >= CLASSROOM_BOUNDS.minX &&
+    position.x <= CLASSROOM_BOUNDS.maxX &&
+    position.z >= CLASSROOM_BOUNDS.minZ &&
+    position.z <= CLASSROOM_BOUNDS.maxZ &&
+    position.y >= CLASSROOM_BOUNDS.minY &&
+    position.y <= CLASSROOM_BOUNDS.maxY
+  );
+}
+
+// Clamp position trong classroom bounds
+function clampToClassroom(position: Vector3): Vector3 {
+  return new Vector3(
+    Math.max(
+      CLASSROOM_BOUNDS.minX,
+      Math.min(CLASSROOM_BOUNDS.maxX, position.x)
+    ),
+    Math.max(
+      CLASSROOM_BOUNDS.minY,
+      Math.min(CLASSROOM_BOUNDS.maxY, position.y)
+    ),
+    Math.max(CLASSROOM_BOUNDS.minZ, Math.min(CLASSROOM_BOUNDS.maxZ, position.z))
+  );
+}
+
+// Tính toán camera position phù hợp khi bị constraints
+function calculateConstrainedCameraPosition(
+  target: Vector3,
+  idealPosition: Vector3,
+  defaultDistance: number,
+  defaultHeight: number
+): { position: Vector3; distance: number; height: number } {
+  // Nếu ideal position trong classroom, sử dụng nó
+  if (isInsideClassroom(idealPosition)) {
+    return {
+      position: idealPosition,
+      distance: defaultDistance,
+      height: defaultHeight,
+    };
+  }
+
+  // Nếu không, thử clamp position
+  const clampedPosition = clampToClassroom(idealPosition);
+
+  // Kiểm tra nếu clampedPosition còn quá gần tường
+  const bufferDistance = 1.5; // Khoảng cách buffer từ tường
+  const adjustedPosition = new Vector3();
+
+  // Adjust X if too close to walls
+  if (clampedPosition.x <= CLASSROOM_BOUNDS.minX + bufferDistance) {
+    adjustedPosition.x = CLASSROOM_BOUNDS.minX + bufferDistance;
+  } else if (clampedPosition.x >= CLASSROOM_BOUNDS.maxX - bufferDistance) {
+    adjustedPosition.x = CLASSROOM_BOUNDS.maxX - bufferDistance;
+  } else {
+    adjustedPosition.x = clampedPosition.x;
+  }
+
+  // Adjust Z if too close to walls
+  if (clampedPosition.z <= CLASSROOM_BOUNDS.minZ + bufferDistance) {
+    adjustedPosition.z = CLASSROOM_BOUNDS.minZ + bufferDistance;
+  } else if (clampedPosition.z >= CLASSROOM_BOUNDS.maxZ - bufferDistance) {
+    adjustedPosition.z = CLASSROOM_BOUNDS.maxZ - bufferDistance;
+  } else {
+    adjustedPosition.z = clampedPosition.z;
+  }
+
+  adjustedPosition.y = clampedPosition.y;
+
+  // Tính toán distance và height mới dựa trên vị trí đã điều chỉnh
+  const adjustedDistance = target.distanceTo(adjustedPosition);
+  const deltaY = adjustedPosition.y - target.y;
+
+  return {
+    position: adjustedPosition,
+    distance: Math.max(3, Math.min(adjustedDistance, defaultDistance)), // Min 3, max defaultDistance
+    height: Math.max(3, deltaY), // Min height 3
+  };
+}
+
 export default function ThirdPersonCamera({
   target,
   targetRotation,
-  distance = 7,
+  distance = 6,
   height = 6,
   smoothness = 0.1,
   isMoving = false,
@@ -27,9 +118,11 @@ export default function ThirdPersonCamera({
   const currentPosition = useRef(new Vector3());
   const currentLookAt = useRef(new Vector3());
 
-  // Camera orbit state
+  // Camera state
   const [cameraAngleOffset, setCameraAngleOffset] = useState(0);
   const [isUserControlling, setIsUserControlling] = useState(false);
+  const [adaptiveDistance, setAdaptiveDistance] = useState(distance);
+  const [adaptiveHeight, setAdaptiveHeight] = useState(height);
   const resetIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const mouseState = useRef({
     isPressed: false,
@@ -137,11 +230,40 @@ export default function ThirdPersonCamera({
     // Calculate final camera angle (character rotation + user offset)
     const finalCameraAngle = targetRotation + Math.PI + cameraAngleOffset;
 
+    // Check if character is inside classroom
+    const isCharacterInClassroom = isInsideClassroom(target);
+
     // Calculate ideal camera position (behind and above the target)
-    idealOffset.current.copy(target);
-    idealOffset.current.x += Math.sin(finalCameraAngle) * distance;
-    idealOffset.current.z += Math.cos(finalCameraAngle) * distance;
-    idealOffset.current.y += height;
+    const idealPosition = new Vector3();
+    idealPosition.copy(target);
+    idealPosition.x += Math.sin(finalCameraAngle) * adaptiveDistance;
+    idealPosition.z += Math.cos(finalCameraAngle) * adaptiveDistance;
+    idealPosition.y += adaptiveHeight;
+
+    // Only apply classroom constraints if character is inside classroom
+    if (isCharacterInClassroom) {
+      // Apply classroom constraints
+      const constrainedResult = calculateConstrainedCameraPosition(
+        target,
+        idealPosition,
+        distance,
+        height
+      );
+
+      // Update adaptive distance/height based on constraints
+      setAdaptiveDistance(constrainedResult.distance);
+      setAdaptiveHeight(constrainedResult.height);
+
+      // Store constrained position as ideal
+      idealOffset.current.copy(constrainedResult.position);
+    } else {
+      // Character is outside classroom - use normal camera behavior
+      setAdaptiveDistance(distance);
+      setAdaptiveHeight(height);
+
+      // Use ideal position without constraints
+      idealOffset.current.copy(idealPosition);
+    }
 
     // Calculate ideal look-at position (slightly above the target)
     idealLookAt.current.copy(target);
@@ -151,6 +273,11 @@ export default function ThirdPersonCamera({
     const currentSmoothness = isUserControlling ? smoothness * 2 : smoothness;
     currentPosition.current.lerp(idealOffset.current, currentSmoothness);
     currentLookAt.current.lerp(idealLookAt.current, currentSmoothness);
+
+    // Only apply final safety check if character is in classroom
+    if (isCharacterInClassroom) {
+      currentPosition.current.copy(clampToClassroom(currentPosition.current));
+    }
 
     // Update camera
     camera.position.copy(currentPosition.current);

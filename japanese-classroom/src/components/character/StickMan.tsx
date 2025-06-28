@@ -4,10 +4,15 @@ import { useRef, useMemo, useEffect, useState } from "react";
 import { useFrame } from "@react-three/fiber";
 import { useGLTF, useAnimations } from "@react-three/drei";
 import { Group, Vector3, AnimationClip } from "three";
+import {
+  findNearestValidPosition,
+  calculateHeight,
+} from "../scene/CollisionSystem";
 
 interface StickManProps {
   position?: [number, number, number];
   scale?: number;
+  visible?: boolean;
   onPositionChange?: (
     position: Vector3,
     rotation: number,
@@ -32,56 +37,60 @@ function removeRootMotion(
 export default function StickMan({
   position = [0, 0, 0],
   scale = 1,
+  visible = true,
   onPositionChange,
 }: StickManProps) {
   const group = useRef<Group>(null);
-  const { scene, animations } = useGLTF("/animation/walking.glb");
+  const idleGroup = useRef<Group>(null);
+  const walkingGroup = useRef<Group>(null);
 
-  // Process animations to remove root motion
-  const processedAnimations = useMemo(() => {
-    if (!animations.length) return animations;
+  // Load cả hai models
+  const idleModel = useGLTF("/animation/idle.glb");
+  const walkingModel = useGLTF("/animation/walking.glb");
 
-    console.log("Processing animations to remove root motion...");
-    animations.forEach((clip) => {
+  // Process animations để remove root motion cho walking model
+  const processedWalkingAnimations = useMemo(() => {
+    if (!walkingModel.animations.length) return walkingModel.animations;
+
+    console.log("Processing walking animations to remove root motion...");
+    walkingModel.animations.forEach((clip) => {
       removeRootMotion(clip, "mixamorigHips");
     });
 
-    return animations;
-  }, [animations]);
+    return walkingModel.animations;
+  }, [walkingModel.animations]);
 
-  const { actions, names } = useAnimations(processedAnimations, group);
+  // Sử dụng animations cho từng model với ref riêng biệt
+  const { actions: idleActions, names: idleNames } = useAnimations(
+    idleModel.animations,
+    idleGroup
+  );
+  const { actions: walkingActions, names: walkingNames } = useAnimations(
+    processedWalkingAnimations,
+    walkingGroup
+  );
 
   const keysPressed = useRef<KeysPressed>({});
-  const velocity = useRef(new Vector3());
   const moveDirection = useRef(new Vector3());
-  const currentPosition = useRef(
-    new Vector3(position[0], position[1] - 1.2, position[2])
-  );
+
+  // Current logical position (ground level)
+  const currentPosition = useRef(new Vector3(position[0], -1.2, position[2]));
   const currentRotation = useRef(0);
   const rotationSpeed = 3; // Tốc độ quay
 
-  // Animation state - sử dụng useState thay vì useRef
+  // Animation state
   const [isWalking, setIsWalking] = useState(false);
 
   // Animation names mapping
   const animationNames = useMemo(() => {
-    console.log("Available animations:", names);
+    console.log("Available idle animations:", idleNames);
+    console.log("Available walking animations:", walkingNames);
+
     return {
-      idle:
-        names.find(
-          (name) =>
-            name.toLowerCase().includes("idle") ||
-            name.toLowerCase().includes("default") ||
-            name.toLowerCase().includes("rest")
-        ) || names[0], // Fallback to first animation
-      walk:
-        names.find(
-          (name) =>
-            name.toLowerCase().includes("walk") ||
-            name.toLowerCase().includes("walking")
-        ) || names[1], // Fallback to second animation
+      idle: idleNames.length > 0 ? idleNames[0] : null,
+      walk: walkingNames.length > 0 ? walkingNames[0] : null,
     };
-  }, [names]);
+  }, [idleNames, walkingNames]);
 
   // Keyboard event listeners
   useMemo(() => {
@@ -104,42 +113,52 @@ export default function StickMan({
     }
   }, []);
 
-  // Animation switching với logic đơn giản theo code mẫu
+  // Animation switching logic
   useEffect(() => {
-    if (!actions) return;
-
-    const idleAction = actions[animationNames.idle];
-    const walkAction = actions[animationNames.walk];
-
-    if (!idleAction || !walkAction) {
-      console.warn("Required animations not found:", {
-        idle: animationNames.idle,
-        walk: animationNames.walk,
-        available: names,
-      });
-      return;
-    }
-
     if (isWalking) {
-      // Start walking animation
-      walkAction.reset().fadeIn(0.5).play();
-      idleAction.fadeOut(0.5);
+      // Stop idle animations
+      if (idleActions && animationNames.idle) {
+        const idleAction = idleActions[animationNames.idle];
+        if (idleAction) {
+          idleAction.stop();
+        }
+      }
+
+      // Play walking animations
+      if (walkingActions && animationNames.walk) {
+        const walkAction = walkingActions[animationNames.walk];
+        if (walkAction) {
+          walkAction.reset().play();
+        }
+      }
     } else {
-      // Start idle animation
-      walkAction.fadeOut(0.5);
-      idleAction.reset().fadeIn(0.5).play();
+      // Stop walking animations
+      if (walkingActions && animationNames.walk) {
+        const walkAction = walkingActions[animationNames.walk];
+        if (walkAction) {
+          walkAction.stop();
+        }
+      }
+
+      // Play idle animations
+      if (idleActions && animationNames.idle) {
+        const idleAction = idleActions[animationNames.idle];
+        if (idleAction) {
+          idleAction.reset().play();
+        }
+      }
     }
-  }, [isWalking, actions, animationNames, names]);
+  }, [isWalking, idleActions, walkingActions, animationNames]);
 
   // Khởi tạo idle animation khi component mount
   useEffect(() => {
-    if (actions && animationNames.idle) {
-      const idleAction = actions[animationNames.idle];
+    if (idleActions && animationNames.idle && !isWalking) {
+      const idleAction = idleActions[animationNames.idle];
       if (idleAction) {
         idleAction.play();
       }
     }
-  }, [actions, animationNames.idle]);
+  }, [idleActions, animationNames.idle, isWalking]);
 
   useFrame((state, delta) => {
     if (!group.current) return;
@@ -178,7 +197,7 @@ export default function StickMan({
       setIsWalking(isMoving);
     }
 
-    // Apply movement relative to character rotation
+    // Apply movement relative to character rotation with collision detection
     if (isMoving) {
       // Convert local movement direction to world space
       const worldDirection = new Vector3();
@@ -188,15 +207,36 @@ export default function StickMan({
         currentRotation.current
       );
 
-      // Apply movement - chỉ cập nhật X và Z, giữ Y cố định
-      velocity.current.copy(worldDirection).multiplyScalar(speed * delta);
-      currentPosition.current.x += velocity.current.x;
-      currentPosition.current.z += velocity.current.z;
-      // Y position luôn giữ cố định để tránh floating
-      currentPosition.current.y = position[1] - 1.2;
+      // Calculate target position
+      const movement = worldDirection.multiplyScalar(speed * delta);
+      const targetPosition = currentPosition.current.clone();
+      targetPosition.x += movement.x;
+      targetPosition.z += movement.z;
+      // Y position sẽ được tính toán bởi height zones
 
-      // Update group position
-      group.current.position.copy(currentPosition.current);
+      // Check collision and find valid position with dynamic height
+      const validPosition = findNearestValidPosition(
+        targetPosition,
+        currentPosition.current,
+        0.5 // Character radius
+      );
+
+      // Update position only if different from current
+      if (!validPosition.equals(currentPosition.current)) {
+        currentPosition.current.copy(validPosition);
+      }
+    }
+
+    // Always update display position based on current logical position and height zones
+    const currentHeight = calculateHeight(currentPosition.current);
+    const displayPosition = new Vector3(
+      currentPosition.current.x,
+      currentHeight + 1.2, // Add display offset
+      currentPosition.current.z
+    );
+
+    if (group.current) {
+      group.current.position.copy(displayPosition);
     }
 
     // Notify parent of position change, rotation and movement state for camera following
@@ -210,11 +250,28 @@ export default function StickMan({
   });
 
   return (
-    <group ref={group} position={[position[0], position[1] - 1.2, position[2]]}>
-      <primitive object={scene} scale={scale} />
+    <group
+      ref={group}
+      position={[position[0], position[1] - 1.2, position[2]]}
+      visible={visible}
+    >
+      {/* Hiển thị idle model với Y offset riêng */}
+      {!isWalking && (
+        <group ref={idleGroup} position={[0, 0.1, 0]}>
+          <primitive object={idleModel.scene} scale={scale} />
+        </group>
+      )}
+
+      {/* Hiển thị walking model với Y offset riêng */}
+      {isWalking && (
+        <group ref={walkingGroup} position={[0, -1.2, 0]}>
+          <primitive object={walkingModel.scene} scale={scale} />
+        </group>
+      )}
     </group>
   );
 }
 
-// Preload the model
+// Preload cả hai models
+useGLTF.preload("/animation/idle.glb");
 useGLTF.preload("/animation/walking.glb");

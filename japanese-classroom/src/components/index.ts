@@ -2,7 +2,7 @@
 export { default as StickMan } from "./character";
 
 // Camera components
-export { default as ThirdPersonCamera } from "./camera";
+export { ThirdPersonCamera, FirstPersonCamera } from "./camera";
 
 // Scene components
 export { default as ClassroomScene } from "./scene";
