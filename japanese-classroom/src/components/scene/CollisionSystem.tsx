@@ -172,6 +172,12 @@ export const CLASSROOM_COLLISIONS: CollisionBox[] = [
     type: "furniture",
   },
   {
+    min: new Vector3(-11.0, -2.2, -22.8),
+    max: new Vector3(-9.2, -0.2, -20.8),
+    name: "bàn học sinh",
+    type: "furniture",
+  },
+  {
     min: new Vector3(-25.9, -2.2, -18.1),
     max: new Vector3(-23.9, -0.2, -16.1),
     name: "new-collision",
@@ -241,6 +247,12 @@ export const CLASSROOM_COLLISIONS: CollisionBox[] = [
     min: new Vector3(-33.1, -5.2, -25.9),
     max: new Vector3(2.9, 2.8, -24.9),
     name: "new-collision",
+    type: "wall",
+  },
+  {
+    min: new Vector3(1.9, -1.7, -13.3),
+    max: new Vector3(3.9, 0.3, -11.3),
+    name: "giáo viên",
     type: "wall",
   },
 ];

@@ -13,6 +13,7 @@ interface StickManProps {
   position?: [number, number, number];
   scale?: number;
   visible?: boolean;
+  disabled?: boolean; // Vô hiệu hóa di chuyển khi đang ngồi
   onPositionChange?: (
     position: Vector3,
     rotation: number,
@@ -38,6 +39,7 @@ export default function StickMan({
   position = [0, 0, 0],
   scale = 1,
   visible = true,
+  disabled = false,
   onPositionChange,
 }: StickManProps) {
   const group = useRef<Group>(null);
@@ -166,6 +168,15 @@ export default function StickMan({
     const speed = 8;
     const keys = keysPressed.current;
     let isMoving = false;
+
+    // Skip movement input if disabled (sitting mode)
+    if (disabled) {
+      // Still update animation state to idle when disabled
+      if (isWalking !== false) {
+        setIsWalking(false);
+      }
+      return;
+    }
 
     // Reset movement direction
     moveDirection.current.set(0, 0, 0);

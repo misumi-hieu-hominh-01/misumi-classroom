@@ -11,6 +11,8 @@ interface FirstPersonCameraProps {
   sensitivity?: number;
   isMoving?: boolean;
   defaultPitch?: number; // Góc nhìn xuống mặc định
+  initialYaw?: number; // Góc hướng nhìn ban đầu (yaw)
+  isSitting?: boolean; // Có đang ngồi không (bỏ qua targetRotation)
 }
 
 export default function FirstPersonCamera({
@@ -20,11 +22,26 @@ export default function FirstPersonCamera({
   sensitivity = 0.002,
   isMoving = false,
   defaultPitch = -0.1, // Nhìn xuống một chút mặc định (radians)
+  initialYaw = 0, // Góc hướng nhìn ban đầu
+  isSitting = false, // Có đang ngồi không
 }: FirstPersonCameraProps) {
   const { camera, gl } = useThree();
   const [mouseAngleX, setMouseAngleX] = useState(defaultPitch); // Pitch (nhìn lên/xuống) - bắt đầu với default
-  const [mouseAngleY, setMouseAngleY] = useState(0); // Yaw (quay trái/phải)
+  const [mouseAngleY, setMouseAngleY] = useState(initialYaw); // Yaw (quay trái/phải) - bắt đầu với initialYaw
   const resetIntervalRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Reset camera angles when initialYaw changes
+  useEffect(() => {
+    if (process.env.NODE_ENV === "development") {
+      console.log(
+        `FirstPersonCamera: Setting initialYaw to ${(
+          (initialYaw * 180) /
+          Math.PI
+        ).toFixed(1)}° (Sitting: ${isSitting})`
+      );
+    }
+    setMouseAngleY(initialYaw);
+  }, [initialYaw, isSitting]);
 
   const mouseState = useRef({
     isPressed: false,
@@ -94,7 +111,7 @@ export default function FirstPersonCamera({
   useEffect(() => {
     if (
       isMoving &&
-      (Math.abs(mouseAngleY) > 0.01 ||
+      (Math.abs(mouseAngleY - initialYaw) > 0.01 ||
         Math.abs(mouseAngleX - defaultPitch) > 0.01)
     ) {
       // Clear any existing reset interval
@@ -110,10 +127,12 @@ export default function FirstPersonCamera({
         let pitchReset = false;
 
         setMouseAngleY((prev) => {
-          const newAngle = prev * (1 - resetSpeed);
-          if (Math.abs(newAngle) < 0.01) {
+          const targetAngle = initialYaw;
+          const diff = targetAngle - prev;
+          const newAngle = prev + diff * resetSpeed;
+          if (Math.abs(newAngle - targetAngle) < 0.01) {
             yawReset = true;
-            return 0;
+            return targetAngle;
           }
           return newAngle;
         });
@@ -145,7 +164,7 @@ export default function FirstPersonCamera({
         }
       };
     }
-  }, [isMoving, mouseAngleY, mouseAngleX, defaultPitch]);
+  }, [isMoving, mouseAngleY, mouseAngleX, defaultPitch, initialYaw]);
 
   useFrame(() => {
     // Position camera slightly in front of character's head to avoid clipping
@@ -158,9 +177,26 @@ export default function FirstPersonCamera({
     eyePosition.z += Math.cos(targetRotation) * forwardOffset;
     eyePosition.y += eyeHeight;
 
-    // Calculate final rotation (character rotation + mouse input)
-    const finalYaw = targetRotation + mouseAngleY;
+    // Calculate final rotation
+    // When sitting, ignore character rotation and use only camera angle
+    const finalYaw = isSitting ? mouseAngleY : targetRotation + mouseAngleY;
     const finalPitch = mouseAngleX;
+
+    // Debug log for sitting mode (only log occasionally to avoid spam)
+    if (
+      isSitting &&
+      Math.random() < 0.01 &&
+      process.env.NODE_ENV === "development"
+    ) {
+      console.log(
+        `Camera angles - Target: ${((targetRotation * 180) / Math.PI).toFixed(
+          1
+        )}°, Mouse: ${((mouseAngleY * 180) / Math.PI).toFixed(1)}°, Final: ${(
+          (finalYaw * 180) /
+          Math.PI
+        ).toFixed(1)}°`
+      );
+    }
 
     // Calculate look direction
     const lookDirection = new Vector3();

@@ -2,7 +2,7 @@
 
 import { Canvas } from "@react-three/fiber";
 import { OrbitControls, useGLTF, Environment } from "@react-three/drei";
-import { Suspense, useState } from "react";
+import { Suspense, useState, useEffect, useCallback } from "react";
 import { Vector3 } from "three";
 import StickMan, { Teacher } from "../character";
 import { ThirdPersonCamera, FirstPersonCamera } from "../camera";
@@ -10,6 +10,13 @@ import DynamicLighting from "./DynamicLighting";
 import TimeDisplay from "../ui";
 import { renderCollisionBoxes } from "./CollisionSystem";
 import CollisionHelper, { PreviewCollisionBox } from "./CollisionHelper";
+import {
+  findNearbyCheckpoint,
+  renderCheckpointBoxes,
+  Checkpoint,
+} from "./CheckpointSystem";
+import CheckpointHelper, { PreviewCheckpointBox } from "./CheckpointHelper";
+import { NotificationSystem, useNotifications, InteractionButton } from "../ui";
 
 interface ClassroomModelProps {
   position?: [number, number, number];
@@ -46,6 +53,36 @@ export default function ClassroomScene() {
     depth: 2,
   });
 
+  // Checkpoint system states
+  const [showCheckpointBoxes, setShowCheckpointBoxes] = useState(false);
+  const [showCheckpointPreview, setShowCheckpointPreview] = useState(false);
+  const [checkpointPreviewSize, setCheckpointPreviewSize] = useState({
+    width: 1,
+    height: 2,
+    depth: 1,
+  });
+  const [checkpointType, setCheckpointType] = useState<
+    "seat" | "desk" | "board" | "door" | "custom"
+  >("seat");
+
+  // Notification system
+  const { notifications, addNotification, removeNotification } =
+    useNotifications();
+
+  // Sitting mode states
+  const [isSitting, setIsSitting] = useState(false);
+  const [currentSeatCheckpoint, setCurrentSeatCheckpoint] =
+    useState<Checkpoint | null>(null);
+  const [nearbyInteractable, setNearbyInteractable] =
+    useState<Checkpoint | null>(null);
+  const [originalPosition, setOriginalPosition] = useState<Vector3 | null>(
+    null
+  );
+  const [originalCameraMode, setOriginalCameraMode] = useState<
+    "first-person" | "third-person" | "free"
+  >("third-person");
+  const [sittingCameraYaw, setSittingCameraYaw] = useState(0); // Góc camera khi ngồi
+
   const handleStickmanPositionChange = (
     position: Vector3,
     rotation: number,
@@ -55,6 +92,129 @@ export default function ClassroomScene() {
     setStickmanRotation(rotation);
     setIsStickmanMoving(isMoving);
   };
+
+  // Check for nearby interactable seats
+  useEffect(() => {
+    if (isSitting) return; // Không check khi đang ngồi
+
+    // Check for nearby interactable (always detect regardless of cooldown)
+    const nearbyCheckpoint = findNearbyCheckpoint(stickmanPosition);
+    if (nearbyCheckpoint && nearbyCheckpoint.type === "seat") {
+      setNearbyInteractable(nearbyCheckpoint);
+    } else {
+      setNearbyInteractable(null);
+    }
+  }, [stickmanPosition, isSitting]);
+
+  // Add new checkpoint handler
+  const handleAddCheckpoint = (checkpoint: Checkpoint) => {
+    // In a real app, you would save this to a database or state management
+    console.log("New checkpoint added:", checkpoint);
+  };
+
+  // Handle seat interaction
+  const handleSeatInteraction = useCallback(() => {
+    if (!nearbyInteractable || nearbyInteractable.type !== "seat") return;
+
+    // Save current state
+    setOriginalPosition(stickmanPosition.clone());
+    setOriginalCameraMode(cameraMode);
+
+    // Calculate seat position (center of checkpoint)
+    const seatPosition = new Vector3(
+      (nearbyInteractable.min.x + nearbyInteractable.max.x) / 2,
+      (nearbyInteractable.min.y + nearbyInteractable.max.y) / 2,
+      (nearbyInteractable.min.z + nearbyInteractable.max.z) / 2
+    );
+
+    // Reset character rotation to 0 for consistent calculation
+
+    // Calculate camera angle to face teacher from seat position
+    const teacherPosition = new Vector3(3, -0.7, -12.08);
+    const direction = teacherPosition.clone().sub(seatPosition);
+
+    // Calculate direct angle from seat to teacher (independent of character rotation)
+    const directAngle = Math.atan2(direction.x, direction.z);
+    const directAngleDegrees = (directAngle * 180) / Math.PI;
+
+    // Convert to expected range based on user data
+    let cameraAngleDegrees = directAngleDegrees;
+
+    // Normalize to -360 to 0 range to match user data
+    if (cameraAngleDegrees > 0) {
+      cameraAngleDegrees = cameraAngleDegrees - 360;
+    }
+
+    const cameraYaw = (cameraAngleDegrees * Math.PI) / 180;
+
+    // Debug log with comprehensive angle information
+    if (process.env.NODE_ENV === "development") {
+      console.log(`Seat interaction:
+        Seat Position: (${seatPosition.x.toFixed(2)}, ${seatPosition.y.toFixed(
+        2
+      )}, ${seatPosition.z.toFixed(2)})
+        Teacher Position: (${teacherPosition.x.toFixed(
+          2
+        )}, ${teacherPosition.y.toFixed(2)}, ${teacherPosition.z.toFixed(2)})
+        Direction Vector: (${direction.x.toFixed(3)}, ${direction.z.toFixed(3)})
+        Direct Angle: ${directAngleDegrees.toFixed(1)}°
+        Final Camera Angle: ${cameraAngleDegrees.toFixed(
+          1
+        )}° (${cameraYaw.toFixed(3)} rad)`);
+    }
+
+    // Set sitting mode
+    setIsSitting(true);
+    setCurrentSeatCheckpoint(nearbyInteractable);
+    setCameraMode("first-person");
+    setSittingCameraYaw(cameraYaw); // Set camera yaw for first-person camera
+
+    // Move character to seat position
+    setStickmanPosition(seatPosition);
+
+    // Reset character rotation to 0 for consistent camera calculation
+    setStickmanRotation(0);
+
+    addNotification("Bạn đã ngồi xuống! Nhấn ESC để đứng dậy.", "seat", 4000);
+  }, [nearbyInteractable, stickmanPosition, cameraMode, addNotification]);
+
+  // Handle ESC key to exit sitting mode
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape" && isSitting) {
+        // Exit sitting mode
+        setIsSitting(false);
+        setCurrentSeatCheckpoint(null);
+        setCameraMode(originalCameraMode);
+        setSittingCameraYaw(0); // Reset camera yaw
+
+        if (originalPosition) {
+          setStickmanPosition(originalPosition);
+          setOriginalPosition(null);
+        }
+
+        addNotification("Bạn đã đứng dậy!", "seat", 2000);
+      }
+
+      // Handle F key for interaction
+      if (event.key === "f" || event.key === "F") {
+        if (nearbyInteractable?.type === "seat" && !isSitting) {
+          handleSeatInteraction();
+        }
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [
+    isSitting,
+    originalPosition,
+    originalCameraMode,
+    nearbyInteractable,
+    stickmanPosition,
+    addNotification,
+    handleSeatInteraction,
+  ]);
 
   // Cycle camera modes
   const cycleCameraMode = () => {
@@ -85,6 +245,9 @@ export default function ClassroomScene() {
           {/* Debug: Collision Boxes */}
           {showCollisionBoxes && renderCollisionBoxes()}
 
+          {/* Debug: Checkpoint Boxes */}
+          {showCheckpointBoxes && renderCheckpointBoxes()}
+
           {/* Preview Collision Box */}
           {showPreviewBox && (
             <PreviewCollisionBox
@@ -93,10 +256,20 @@ export default function ClassroomScene() {
             />
           )}
 
+          {/* Preview Checkpoint Box */}
+          {showCheckpointPreview && (
+            <PreviewCheckpointBox
+              position={stickmanPosition}
+              size={checkpointPreviewSize}
+              type={checkpointType}
+            />
+          )}
+
           <StickMan
             position={[0, 0, 0]}
             scale={0.9}
             visible={cameraMode !== "first-person"}
+            disabled={isSitting}
             onPositionChange={handleStickmanPositionChange}
           />
 
@@ -116,6 +289,8 @@ export default function ClassroomScene() {
               sensitivity={0.002}
               isMoving={isStickmanMoving}
               defaultPitch={-0.15}
+              initialYaw={isSitting ? sittingCameraYaw : 0}
+              isSitting={isSitting}
             />
           )}
 
@@ -145,6 +320,12 @@ export default function ClassroomScene() {
 
       {/* Time Display */}
       <TimeDisplay />
+
+      {/* Notification System */}
+      <NotificationSystem
+        notifications={notifications}
+        onRemoveNotification={removeNotification}
+      />
 
       {/* Controls UI */}
       <div className="absolute top-4 left-4 z-10 bg-white/90 backdrop-blur-sm rounded-lg p-4 shadow-lg max-w-sm">
@@ -226,6 +407,32 @@ export default function ClassroomScene() {
               >
                 {showPreviewBox ? "Ẩn Preview Box" : "Hiện Preview Box"}
               </button>
+
+              <button
+                onClick={() => setShowCheckpointBoxes(!showCheckpointBoxes)}
+                className={`w-full px-2 py-1 text-xs rounded transition-colors ${
+                  showCheckpointBoxes
+                    ? "bg-purple-500 text-white hover:bg-purple-600"
+                    : "bg-gray-500 text-white hover:bg-gray-600"
+                }`}
+              >
+                {showCheckpointBoxes
+                  ? "Ẩn Checkpoint Boxes"
+                  : "Hiện Checkpoint Boxes"}
+              </button>
+
+              <button
+                onClick={() => setShowCheckpointPreview(!showCheckpointPreview)}
+                className={`w-full px-2 py-1 text-xs rounded transition-colors ${
+                  showCheckpointPreview
+                    ? "bg-purple-800 text-white hover:bg-purple-900"
+                    : "bg-gray-500 text-white hover:bg-gray-600"
+                }`}
+              >
+                {showCheckpointPreview
+                  ? "Ẩn Checkpoint Preview"
+                  : "Hiện Checkpoint Preview"}
+              </button>
             </div>
           </div>
         </div>
@@ -236,6 +443,65 @@ export default function ClassroomScene() {
         characterPosition={stickmanPosition}
         onPreviewSizeChange={setPreviewBoxSize}
       />
+
+      {/* Checkpoint Helper */}
+      <CheckpointHelper
+        characterPosition={stickmanPosition}
+        onAddCheckpoint={handleAddCheckpoint}
+        onPreviewSizeChange={(size) => {
+          setCheckpointPreviewSize(size);
+          // Also update checkpoint type if needed
+          setCheckpointType("seat");
+        }}
+      />
+
+      {/* Debug Info */}
+      {process.env.NODE_ENV === "development" && (
+        <div className="fixed bottom-4 right-4 z-30 bg-black/80 text-white p-2 rounded text-xs space-y-1">
+          <div>Sitting: {isSitting ? "Yes" : "No"}</div>
+          <div>
+            Nearby: {nearbyInteractable ? nearbyInteractable.name : "None"}
+          </div>
+          <div>Type: {nearbyInteractable?.type || "None"}</div>
+          <div>
+            Button visible:{" "}
+            {!isSitting && nearbyInteractable?.type === "seat" ? "Yes" : "No"}
+          </div>
+          <div>Camera Mode: {cameraMode}</div>
+          <div>
+            Sitting Camera Yaw:{" "}
+            {((sittingCameraYaw * 180) / Math.PI).toFixed(1)}°
+          </div>
+          <div>
+            Player Position: ({stickmanPosition.x.toFixed(1)},{" "}
+            {stickmanPosition.y.toFixed(1)}, {stickmanPosition.z.toFixed(1)})
+          </div>
+          <div>
+            Player Rotation: {((stickmanRotation * 180) / Math.PI).toFixed(1)}°
+          </div>
+        </div>
+      )}
+
+      {/* Interaction Button */}
+      <InteractionButton
+        visible={!isSitting && nearbyInteractable?.type === "seat"}
+        checkpointType={nearbyInteractable?.type || "seat"}
+        checkpointName={nearbyInteractable?.name || ""}
+        onInteract={handleSeatInteraction}
+        disabled={isSitting}
+      />
+
+      {/* Sitting mode indicator */}
+      {isSitting && currentSeatCheckpoint && (
+        <div className="fixed top-1/2 left-4 z-30 bg-blue-500/90 text-white p-3 rounded-lg shadow-lg">
+          <div className="text-sm font-medium">
+            📚 Đang ngồi tại: {currentSeatCheckpoint.name}
+          </div>
+          <div className="text-xs text-blue-100 mt-1">
+            Nhấn <kbd className="bg-blue-600 px-1 rounded">ESC</kbd> để đứng dậy
+          </div>
+        </div>
+      )}
     </div>
   );
 }

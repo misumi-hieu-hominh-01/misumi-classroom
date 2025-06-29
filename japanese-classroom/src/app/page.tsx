@@ -1,6 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
+import { AudioController } from "../components/ui";
 
 // Dynamic import để tránh SSR issues với Three.js
 const ClassroomScene = dynamic(() => import("../components/scene"), {
@@ -19,6 +20,9 @@ export default function Home() {
   return (
     <main className="w-full h-screen overflow-hidden">
       <ClassroomScene />
+
+      {/* Audio Controller */}
+      <AudioController />
 
       {/* Title */}
       <div className="absolute top-4 right-4 z-10 bg-white/90 backdrop-blur-sm rounded-lg p-3 shadow-lg">
