@@ -6,7 +6,7 @@ export interface Checkpoint {
   max: Vector3;
   name: string;
   id: string;
-  type: "seat" | "desk" | "board" | "door" | "custom";
+  type: "seat" | "desk" | "board" | "door" | "teacher" | "custom";
   message: string; // Thông báo hiển thị khi kích hoạt
   triggered?: boolean; // Đã kích hoạt chưa
   cooldown?: number; // Thời gian nghỉ giữa các lần kích hoạt (ms)
@@ -241,6 +241,17 @@ export const CLASSROOM_CHECKPOINTS: Checkpoint[] = [
     type: "seat",
     message: "Bạn đã đến một vị trí đặc biệt!",
     cooldown: 3000,
+  },
+  // Teacher checkpoint - expanded area around teacher
+  {
+    min: new Vector3(-2.5, -1.7, -23.2),
+    max: new Vector3(6.3, 0.3, -14.0),
+
+    name: "Giáo viên",
+    id: "teacher_01",
+    type: "teacher",
+    message: "🧑‍🏫 Hãy nói chuyện với giáo viên!",
+    cooldown: 2000,
   },
   // Có thể thêm nhiều checkpoint khác bằng CheckpointHelper
 ];

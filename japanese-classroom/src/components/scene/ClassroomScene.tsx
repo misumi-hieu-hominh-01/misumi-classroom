@@ -27,16 +27,16 @@ function ClassroomModel({
   position = [0, 0, 0],
   scale = 3,
 }: ClassroomModelProps) {
-  const { scene } = useGLTF("/3d_source/japanese_classroom.glb");
+  const { scene } = useGLTF("/3d_source/main_classroom.glb");
 
   return <primitive object={scene} position={position} scale={scale} />;
 }
 
 export default function ClassroomScene() {
   const [stickmanPosition, setStickmanPosition] = useState(
-    new Vector3(0, 0, 0)
+    new Vector3(-3.0, -1.2, 1.2)
   );
-  const [stickmanRotation, setStickmanRotation] = useState(0);
+  const [stickmanRotation, setStickmanRotation] = useState(Math.PI);
   const [isStickmanMoving, setIsStickmanMoving] = useState(false);
   const [cameraMode, setCameraMode] = useState<
     "first-person" | "third-person" | "free"
@@ -66,8 +66,7 @@ export default function ClassroomScene() {
   >("seat");
 
   // Notification system
-  const { notifications, addNotification, removeNotification } =
-    useNotifications();
+  const { notifications, removeNotification } = useNotifications();
 
   // Sitting mode states
   const [isSitting, setIsSitting] = useState(false);
@@ -93,13 +92,30 @@ export default function ClassroomScene() {
     setIsStickmanMoving(isMoving);
   };
 
-  // Check for nearby interactable seats
+  // Check for nearby interactable seats and teacher
   useEffect(() => {
     if (isSitting) return; // Không check khi đang ngồi
 
     // Check for nearby interactable (always detect regardless of cooldown)
     const nearbyCheckpoint = findNearbyCheckpoint(stickmanPosition);
-    if (nearbyCheckpoint && nearbyCheckpoint.type === "seat") {
+
+    // Debug log for teacher detection
+    if (process.env.NODE_ENV === "development") {
+      console.log(`Checkpoint detection:
+        Player pos: (${stickmanPosition.x.toFixed(
+          1
+        )}, ${stickmanPosition.y.toFixed(1)}, ${stickmanPosition.z.toFixed(1)})
+        Nearby checkpoint: ${
+          nearbyCheckpoint
+            ? `${nearbyCheckpoint.name} (${nearbyCheckpoint.type})`
+            : "None"
+        }`);
+    }
+
+    if (
+      nearbyCheckpoint &&
+      (nearbyCheckpoint.type === "seat" || nearbyCheckpoint.type === "teacher")
+    ) {
       setNearbyInteractable(nearbyCheckpoint);
     } else {
       setNearbyInteractable(null);
@@ -111,6 +127,15 @@ export default function ClassroomScene() {
     // In a real app, you would save this to a database or state management
     console.log("New checkpoint added:", checkpoint);
   };
+
+  // Handle teacher interaction
+  const handleTeacherInteraction = useCallback(() => {
+    if (!nearbyInteractable || nearbyInteractable.type !== "teacher") return;
+
+    console.log("Talking to teacher...");
+    // Add your teacher interaction logic here
+    // For example: show dialog, start conversation, etc.
+  }, [nearbyInteractable]);
 
   // Handle seat interaction
   const handleSeatInteraction = useCallback(() => {
@@ -174,9 +199,7 @@ export default function ClassroomScene() {
 
     // Reset character rotation to 0 for consistent camera calculation
     setStickmanRotation(0);
-
-    addNotification("Bạn đã ngồi xuống! Nhấn ESC để đứng dậy.", "seat", 4000);
-  }, [nearbyInteractable, stickmanPosition, cameraMode, addNotification]);
+  }, [nearbyInteractable, stickmanPosition, cameraMode]);
 
   // Handle ESC key to exit sitting mode
   useEffect(() => {
@@ -192,14 +215,14 @@ export default function ClassroomScene() {
           setStickmanPosition(originalPosition);
           setOriginalPosition(null);
         }
-
-        addNotification("Bạn đã đứng dậy!", "seat", 2000);
       }
 
       // Handle F key for interaction
       if (event.key === "f" || event.key === "F") {
         if (nearbyInteractable?.type === "seat" && !isSitting) {
           handleSeatInteraction();
+        } else if (nearbyInteractable?.type === "teacher") {
+          handleTeacherInteraction();
         }
       }
     };
@@ -212,8 +235,8 @@ export default function ClassroomScene() {
     originalCameraMode,
     nearbyInteractable,
     stickmanPosition,
-    addNotification,
     handleSeatInteraction,
+    handleTeacherInteraction,
   ]);
 
   // Cycle camera modes
@@ -266,18 +289,24 @@ export default function ClassroomScene() {
           )}
 
           <StickMan
-            position={[0, 0, 0]}
+            position={[-3.0, -1.2, 1.2]}
             scale={0.9}
             visible={cameraMode !== "first-person"}
             disabled={isSitting}
+            initialRotation={Math.PI}
             onPositionChange={handleStickmanPositionChange}
           />
 
           {/* Teacher - Static character with talk animation */}
           <Teacher
-            position={[3, -0.7, -12.08]} // Center front of classroom
+            position={[3.4, -0.7, -18.9]} // Center front of classroom
             scale={0.9}
             rotation={[0, -1.5, 0]} // Face towards students (default forward)
+            playerPosition={
+              nearbyInteractable?.type === "teacher"
+                ? stickmanPosition
+                : undefined
+            }
           />
 
           {/* Camera System */}
@@ -465,7 +494,11 @@ export default function ClassroomScene() {
           <div>Type: {nearbyInteractable?.type || "None"}</div>
           <div>
             Button visible:{" "}
-            {!isSitting && nearbyInteractable?.type === "seat" ? "Yes" : "No"}
+            {!isSitting &&
+            (nearbyInteractable?.type === "seat" ||
+              nearbyInteractable?.type === "teacher")
+              ? "Yes"
+              : "No"}
           </div>
           <div>Camera Mode: {cameraMode}</div>
           <div>
@@ -484,10 +517,18 @@ export default function ClassroomScene() {
 
       {/* Interaction Button */}
       <InteractionButton
-        visible={!isSitting && nearbyInteractable?.type === "seat"}
+        visible={
+          !isSitting &&
+          (nearbyInteractable?.type === "seat" ||
+            nearbyInteractable?.type === "teacher")
+        }
         checkpointType={nearbyInteractable?.type || "seat"}
         checkpointName={nearbyInteractable?.name || ""}
-        onInteract={handleSeatInteraction}
+        onInteract={
+          nearbyInteractable?.type === "teacher"
+            ? handleTeacherInteraction
+            : handleSeatInteraction
+        }
         disabled={isSitting}
       />
 
@@ -507,4 +548,4 @@ export default function ClassroomScene() {
 }
 
 // Preload the classroom model
-useGLTF.preload("/3d_source/japanese_classroom.glb");
+useGLTF.preload("/3d_source/main_classroom.glb");

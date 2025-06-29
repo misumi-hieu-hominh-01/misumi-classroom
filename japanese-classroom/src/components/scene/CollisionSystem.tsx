@@ -214,10 +214,16 @@ export const CLASSROOM_COLLISIONS: CollisionBox[] = [
     type: "wall",
   },
   {
-    min: new Vector3(-0.1, -2.5, -13.6),
-    max: new Vector3(1.6, 0.1, -11.2),
-    name: "bàn học sinh",
+    min: new Vector3(0.2, -1.7, -19.5),
+    max: new Vector3(2.2, 0.3, -17.0),
+    name: "bàn giảng",
     type: "furniture",
+  },
+  {
+    min: new Vector3(2.2, -2.7, -19.7),
+    max: new Vector3(4.4, 1.3, -18.1),
+    name: "giao vien",
+    type: "wall",
   },
   {
     min: new Vector3(3.1, -2.2, -25.2),
@@ -250,10 +256,22 @@ export const CLASSROOM_COLLISIONS: CollisionBox[] = [
     type: "wall",
   },
   {
-    min: new Vector3(1.9, -1.7, -13.3),
-    max: new Vector3(3.9, 0.3, -11.3),
-    name: "giáo viên",
+    min: new Vector3(-31.6, -5.2, 0.0),
+    max: new Vector3(-24.1, 2.8, 1.5),
+    name: "tường",
     type: "wall",
+  },
+  {
+    min: new Vector3(-32.8, -2.1, -4.2),
+    max: new Vector3(-32.0, -0.3, -3.4),
+    name: "tường",
+    type: "wall",
+  },
+  {
+    min: new Vector3(-0.9, -3.7, 0.2),
+    max: new Vector3(4.6, 1.3, 1.2),
+    name: "bàn giảng",
+    type: "furniture",
   },
 ];
 
@@ -305,7 +323,7 @@ export function calculateHeight(
   return defaultHeight; // Default ground level
 }
 
-// Hàm tìm vị trí hợp lệ gần nhất
+// Hàm tìm vị trí hợp lệ gần nhất với wall sliding
 export function findNearestValidPosition(
   targetPosition: Vector3,
   currentPosition: Vector3,
@@ -317,23 +335,49 @@ export function findNearestValidPosition(
     return new Vector3(targetPosition.x, newHeight, targetPosition.z);
   }
 
-  // Thử tìm vị trí gần nhất theo từng bước nhỏ
-  const directions = [
-    new Vector3(1, 0, 0),
-    new Vector3(-1, 0, 0),
-    new Vector3(0, 0, 1),
-    new Vector3(0, 0, -1),
-    new Vector3(1, 0, 1).normalize(),
-    new Vector3(-1, 0, 1).normalize(),
-    new Vector3(1, 0, -1).normalize(),
-    new Vector3(-1, 0, -1).normalize(),
+  // Calculate movement direction
+  const movementDirection = new Vector3()
+    .subVectors(targetPosition, currentPosition)
+    .normalize();
+
+  // Try wall sliding - test individual axes first
+  const slidePositions = [
+    // Try sliding along X axis (keep Y and Z, slide X towards target)
+    new Vector3(targetPosition.x, currentPosition.y, currentPosition.z),
+    // Try sliding along Z axis (keep X and Y, slide Z towards target)
+    new Vector3(currentPosition.x, currentPosition.y, targetPosition.z),
   ];
 
-  const stepSize = 0.1;
-  const maxSteps = 10;
+  for (const slidePos of slidePositions) {
+    if (!checkCollision(slidePos, characterRadius)) {
+      const newHeight = calculateHeight(slidePos);
+      return new Vector3(slidePos.x, newHeight, slidePos.z);
+    }
+  }
+
+  // If sliding doesn't work, try small steps in movement direction
+  const stepSize = 0.05;
+  const maxSteps = 5;
 
   for (let step = 1; step <= maxSteps; step++) {
-    for (const direction of directions) {
+    const testPosition = currentPosition
+      .clone()
+      .add(movementDirection.clone().multiplyScalar(stepSize * step));
+
+    if (!checkCollision(testPosition, characterRadius)) {
+      const newHeight = calculateHeight(testPosition);
+      return new Vector3(testPosition.x, newHeight, testPosition.z);
+    }
+  }
+
+  // As last resort, try perpendicular directions (for corner cases)
+  const perpendicular = [
+    new Vector3(-movementDirection.z, 0, movementDirection.x).normalize(),
+    new Vector3(movementDirection.z, 0, -movementDirection.x).normalize(),
+  ];
+
+  for (const direction of perpendicular) {
+    for (let step = 1; step <= 3; step++) {
       const testPosition = currentPosition
         .clone()
         .add(direction.clone().multiplyScalar(stepSize * step));
@@ -345,7 +389,7 @@ export function findNearestValidPosition(
     }
   }
 
-  // Nếu không tìm được vị trí hợp lệ, trả về vị trí hiện tại với height phù hợp
+  // If all else fails, stay at current position
   const newHeight = calculateHeight(currentPosition);
   return new Vector3(currentPosition.x, newHeight, currentPosition.z);
 }

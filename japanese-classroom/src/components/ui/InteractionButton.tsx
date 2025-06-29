@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 
 interface InteractionButtonProps {
   visible: boolean;
-  checkpointType: "seat" | "desk" | "board" | "door" | "custom";
+  checkpointType: "seat" | "desk" | "board" | "door" | "teacher" | "custom";
   checkpointName: string;
   onInteract: () => void;
   disabled?: boolean;
@@ -75,6 +75,17 @@ export default function InteractionButton({
             <circle cx="16" cy="12" r="1" />
           </svg>
         );
+      case "teacher":
+        return (
+          <svg
+            className="w-8 h-8 text-orange-600"
+            fill="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path d="M12 2c1.1 0 2 .9 2 2s-.9 2-2 2-2-.9-2-2 .9-2 2-2zm9 7h-6v13h-2v-6h-2v6H9V9H3V7h18v2z" />
+            <path d="M12 7c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2z" />
+          </svg>
+        );
       default:
         return (
           <svg
@@ -98,6 +109,8 @@ export default function InteractionButton({
         return "Xem gần";
       case "door":
         return "Mở cửa";
+      case "teacher":
+        return "Nói chuyện";
       default:
         return "Tương tác";
     }
@@ -157,16 +170,9 @@ export default function InteractionButton({
 
         {/* Action indicator */}
         <div className="absolute -bottom-1 left-1/2 transform -translate-x-1/2 bg-blue-500 text-white text-xs px-2 py-0.5 rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-          {getActionText()}
+          <kbd className=" px-1 rounded">F</kbd>
         </div>
       </button>
-
-      {/* Keyboard hint */}
-      <div className="absolute -bottom-8 left-1/2 transform -translate-x-1/2 text-center">
-        <div className="bg-black/70 text-white text-xs px-2 py-1 rounded">
-          Hoặc nhấn <kbd className="bg-gray-600 px-1 rounded">F</kbd>
-        </div>
-      </div>
     </div>
   );
 }

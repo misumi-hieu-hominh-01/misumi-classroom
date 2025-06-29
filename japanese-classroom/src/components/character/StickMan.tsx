@@ -14,6 +14,7 @@ interface StickManProps {
   scale?: number;
   visible?: boolean;
   disabled?: boolean; // Vô hiệu hóa di chuyển khi đang ngồi
+  initialRotation?: number; // Rotation khởi tạo
   onPositionChange?: (
     position: Vector3,
     rotation: number,
@@ -40,6 +41,7 @@ export default function StickMan({
   scale = 1,
   visible = true,
   disabled = false,
+  initialRotation = 0,
   onPositionChange,
 }: StickManProps) {
   const group = useRef<Group>(null);
@@ -77,7 +79,7 @@ export default function StickMan({
 
   // Current logical position (ground level)
   const currentPosition = useRef(new Vector3(position[0], -1.2, position[2]));
-  const currentRotation = useRef(0);
+  const currentRotation = useRef(initialRotation);
   const rotationSpeed = 3; // Tốc độ quay
 
   // Animation state
@@ -161,6 +163,13 @@ export default function StickMan({
       }
     }
   }, [idleActions, animationNames.idle, isWalking]);
+
+  // Set initial rotation for group
+  useEffect(() => {
+    if (group.current) {
+      group.current.rotation.y = initialRotation;
+    }
+  }, [initialRotation]);
 
   useFrame((state, delta) => {
     if (!group.current) return;
