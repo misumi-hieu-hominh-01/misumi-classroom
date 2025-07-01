@@ -5,6 +5,7 @@ import { useState, useEffect, useRef } from "react";
 export default function AudioController() {
   const [isPlaying, setIsPlaying] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [wasPlayingBeforeBlur, setWasPlayingBeforeBlur] = useState(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
   useEffect(() => {
@@ -27,6 +28,75 @@ export default function AudioController() {
       audio.src = "";
     };
   }, []);
+
+  // Xử lý pause/resume khi focus/blur hoặc tab ẩn/hiện
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (!audioRef.current) return;
+
+      if (document.hidden) {
+        // Tab bị ẩn - pause nhạc nếu đang phát
+        if (isPlaying) {
+          setWasPlayingBeforeBlur(true);
+          audioRef.current.pause();
+          setIsPlaying(false);
+        }
+      } else {
+        // Tab được hiện lại - resume nhạc nếu trước đó đang phát
+        if (wasPlayingBeforeBlur) {
+          setWasPlayingBeforeBlur(false);
+          audioRef.current
+            .play()
+            .then(() => {
+              setIsPlaying(true);
+            })
+            .catch((error) => {
+              console.error("Không thể tiếp tục phát nhạc:", error);
+            });
+        }
+      }
+    };
+
+    const handleWindowBlur = () => {
+      if (!audioRef.current) return;
+
+      // Window mất focus - pause nhạc nếu đang phát
+      if (isPlaying) {
+        setWasPlayingBeforeBlur(true);
+        audioRef.current.pause();
+        setIsPlaying(false);
+      }
+    };
+
+    const handleWindowFocus = () => {
+      if (!audioRef.current) return;
+
+      // Window có focus lại - resume nhạc nếu trước đó đang phát
+      if (wasPlayingBeforeBlur) {
+        setWasPlayingBeforeBlur(false);
+        audioRef.current
+          .play()
+          .then(() => {
+            setIsPlaying(true);
+          })
+          .catch((error) => {
+            console.error("Không thể tiếp tục phát nhạc:", error);
+          });
+      }
+    };
+
+    // Thêm event listeners
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    window.addEventListener("blur", handleWindowBlur);
+    window.addEventListener("focus", handleWindowFocus);
+
+    return () => {
+      // Cleanup event listeners
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      window.removeEventListener("blur", handleWindowBlur);
+      window.removeEventListener("focus", handleWindowFocus);
+    };
+  }, [isPlaying, wasPlayingBeforeBlur]);
 
   const toggleAudio = async () => {
     if (!audioRef.current || isLoading) return;

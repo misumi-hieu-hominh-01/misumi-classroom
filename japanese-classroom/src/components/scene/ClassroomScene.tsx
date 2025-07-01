@@ -16,7 +16,12 @@ import {
   Checkpoint,
 } from "./CheckpointSystem";
 import CheckpointHelper, { PreviewCheckpointBox } from "./CheckpointHelper";
-import { NotificationSystem, useNotifications, InteractionButton } from "../ui";
+import {
+  NotificationSystem,
+  useNotifications,
+  InteractionButton,
+  ChatDialog,
+} from "../ui";
 
 interface ClassroomModelProps {
   position?: [number, number, number];
@@ -32,7 +37,13 @@ function ClassroomModel({
   return <primitive object={scene} position={position} scale={scale} />;
 }
 
-export default function ClassroomScene() {
+interface ClassroomSceneProps {
+  onExitClassroom?: () => void;
+}
+
+export default function ClassroomScene({
+  onExitClassroom,
+}: ClassroomSceneProps) {
   const [stickmanPosition, setStickmanPosition] = useState(
     new Vector3(-3.0, -1.2, 1.2)
   );
@@ -41,6 +52,9 @@ export default function ClassroomScene() {
   const [cameraMode, setCameraMode] = useState<
     "first-person" | "third-person" | "free"
   >("third-person");
+
+  // Debug UI control
+  const [showDebugInfo, setShowDebugInfo] = useState(true);
 
   // Debug collision boxes
   const [showCollisionBoxes, setShowCollisionBoxes] = useState(false);
@@ -82,6 +96,19 @@ export default function ClassroomScene() {
   >("third-person");
   const [sittingCameraYaw, setSittingCameraYaw] = useState(0); // Góc camera khi ngồi
 
+  // Chat dialog states
+  const [showTeacherDialog, setShowTeacherDialog] = useState(false);
+  const [isInConversation, setIsInConversation] = useState(false);
+
+  // Cycle camera modes
+  const cycleCameraMode = useCallback(() => {
+    setCameraMode((mode) => {
+      if (mode === "first-person") return "third-person";
+      if (mode === "third-person") return "free";
+      return "first-person";
+    });
+  }, []);
+
   const handleStickmanPositionChange = (
     position: Vector3,
     rotation: number,
@@ -92,25 +119,22 @@ export default function ClassroomScene() {
     setIsStickmanMoving(isMoving);
   };
 
-  // Check for nearby interactable seats and teacher
+  // Check for nearby interactable seats and teacher, and exit condition
   useEffect(() => {
     if (isSitting) return; // Không check khi đang ngồi
 
+    // Check for exit condition - if player moves far from classroom center
+    const classroomCenter = new Vector3(-15, -1.2, -12);
+    const distanceFromCenter = stickmanPosition.distanceTo(classroomCenter);
+
+    // If player is too far from classroom center, trigger exit
+    if (distanceFromCenter > 25 && onExitClassroom) {
+      onExitClassroom();
+      return;
+    }
+
     // Check for nearby interactable (always detect regardless of cooldown)
     const nearbyCheckpoint = findNearbyCheckpoint(stickmanPosition);
-
-    // Debug log for teacher detection
-    if (process.env.NODE_ENV === "development") {
-      console.log(`Checkpoint detection:
-        Player pos: (${stickmanPosition.x.toFixed(
-          1
-        )}, ${stickmanPosition.y.toFixed(1)}, ${stickmanPosition.z.toFixed(1)})
-        Nearby checkpoint: ${
-          nearbyCheckpoint
-            ? `${nearbyCheckpoint.name} (${nearbyCheckpoint.type})`
-            : "None"
-        }`);
-    }
 
     if (
       nearbyCheckpoint &&
@@ -120,22 +144,76 @@ export default function ClassroomScene() {
     } else {
       setNearbyInteractable(null);
     }
-  }, [stickmanPosition, isSitting]);
+  }, [stickmanPosition, isSitting, onExitClassroom]);
 
   // Add new checkpoint handler
-  const handleAddCheckpoint = (checkpoint: Checkpoint) => {
+  const handleAddCheckpoint = () => {
     // In a real app, you would save this to a database or state management
-    console.log("New checkpoint added:", checkpoint);
   };
+
+  // Teacher messages
+  const teacherMessages = [
+    "こんにちは！日本語のクラスへようこそ！",
+    "今日は何を勉強したいですか？",
+    "ひらがな、カタカナ、それとも漢字ですか？",
+    "頑張って勉強しましょう！",
+  ];
 
   // Handle teacher interaction
   const handleTeacherInteraction = useCallback(() => {
     if (!nearbyInteractable || nearbyInteractable.type !== "teacher") return;
 
-    console.log("Talking to teacher...");
-    // Add your teacher interaction logic here
-    // For example: show dialog, start conversation, etc.
-  }, [nearbyInteractable]);
+    // Save current state and enter conversation mode
+    setOriginalPosition(stickmanPosition.clone());
+    setOriginalCameraMode(cameraMode);
+    setIsInConversation(true);
+
+    // Teacher position (same as defined in Teacher component)
+    const teacherPosition = new Vector3(3.4, -0.7, -18.9);
+
+    // Use current position for conversation (don't move character)
+    const conversationPosition = stickmanPosition.clone();
+
+    // Calculate camera angle to face teacher from current position (similar to seat logic)
+    const direction = teacherPosition.clone().sub(conversationPosition);
+    const directAngle = Math.atan2(direction.x, direction.z);
+    const directAngleDegrees = (directAngle * 180) / Math.PI;
+
+    // Convert to expected range based on user data
+    let cameraAngleDegrees = directAngleDegrees;
+
+    // Normalize to -360 to 0 range to match user data
+    if (cameraAngleDegrees > 0) {
+      cameraAngleDegrees = cameraAngleDegrees - 360;
+    }
+
+    const cameraYaw = (cameraAngleDegrees * Math.PI) / 180;
+
+    // Reset character rotation to 0 for consistent camera calculation
+    setStickmanRotation(0);
+
+    // Switch to first-person camera with calculated angle facing teacher
+    setCameraMode("first-person");
+    setSittingCameraYaw(cameraYaw); // Set camera yaw to face teacher
+
+    // Show dialog
+    setShowTeacherDialog(true);
+  }, [nearbyInteractable, stickmanPosition, cameraMode]);
+
+  // Handle closing teacher dialog
+  const handleCloseTeacherDialog = useCallback(() => {
+    setShowTeacherDialog(false);
+    setIsInConversation(false);
+
+    // Restore original state
+    setCameraMode(originalCameraMode);
+    setSittingCameraYaw(0);
+
+    if (originalPosition) {
+      setStickmanPosition(originalPosition);
+      setOriginalPosition(null);
+    }
+  }, [originalCameraMode, originalPosition]);
 
   // Handle seat interaction
   const handleSeatInteraction = useCallback(() => {
@@ -172,22 +250,6 @@ export default function ClassroomScene() {
 
     const cameraYaw = (cameraAngleDegrees * Math.PI) / 180;
 
-    // Debug log with comprehensive angle information
-    if (process.env.NODE_ENV === "development") {
-      console.log(`Seat interaction:
-        Seat Position: (${seatPosition.x.toFixed(2)}, ${seatPosition.y.toFixed(
-        2
-      )}, ${seatPosition.z.toFixed(2)})
-        Teacher Position: (${teacherPosition.x.toFixed(
-          2
-        )}, ${teacherPosition.y.toFixed(2)}, ${teacherPosition.z.toFixed(2)})
-        Direction Vector: (${direction.x.toFixed(3)}, ${direction.z.toFixed(3)})
-        Direct Angle: ${directAngleDegrees.toFixed(1)}°
-        Final Camera Angle: ${cameraAngleDegrees.toFixed(
-          1
-        )}° (${cameraYaw.toFixed(3)} rad)`);
-    }
-
     // Set sitting mode
     setIsSitting(true);
     setCurrentSeatCheckpoint(nearbyInteractable);
@@ -201,29 +263,42 @@ export default function ClassroomScene() {
     setStickmanRotation(0);
   }, [nearbyInteractable, stickmanPosition, cameraMode]);
 
-  // Handle ESC key to exit sitting mode
+  // Handle keyboard controls
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape" && isSitting) {
-        // Exit sitting mode
-        setIsSitting(false);
-        setCurrentSeatCheckpoint(null);
-        setCameraMode(originalCameraMode);
-        setSittingCameraYaw(0); // Reset camera yaw
+      switch (event.code) {
+        case "Escape":
+          if (isSitting) {
+            // Exit sitting mode
+            setIsSitting(false);
+            setCurrentSeatCheckpoint(null);
+            setCameraMode(originalCameraMode);
+            setSittingCameraYaw(0); // Reset camera yaw
 
-        if (originalPosition) {
-          setStickmanPosition(originalPosition);
-          setOriginalPosition(null);
-        }
-      }
+            if (originalPosition) {
+              setStickmanPosition(originalPosition);
+              setOriginalPosition(null);
+            }
+          }
+          break;
 
-      // Handle F key for interaction
-      if (event.key === "f" || event.key === "F") {
-        if (nearbyInteractable?.type === "seat" && !isSitting) {
-          handleSeatInteraction();
-        } else if (nearbyInteractable?.type === "teacher") {
-          handleTeacherInteraction();
-        }
+        case "KeyC":
+          // Cycle camera mode (only when not sitting or in conversation)
+          if (!isSitting && !isInConversation) {
+            cycleCameraMode();
+          }
+          break;
+
+        case "KeyF":
+          // Handle F key for interaction (only when not in conversation)
+          if (!isInConversation) {
+            if (nearbyInteractable?.type === "seat" && !isSitting) {
+              handleSeatInteraction();
+            } else if (nearbyInteractable?.type === "teacher") {
+              handleTeacherInteraction();
+            }
+          }
+          break;
       }
     };
 
@@ -231,22 +306,15 @@ export default function ClassroomScene() {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [
     isSitting,
+    isInConversation,
     originalPosition,
     originalCameraMode,
     nearbyInteractable,
     stickmanPosition,
     handleSeatInteraction,
     handleTeacherInteraction,
+    cycleCameraMode,
   ]);
-
-  // Cycle camera modes
-  const cycleCameraMode = () => {
-    setCameraMode((mode) => {
-      if (mode === "first-person") return "third-person";
-      if (mode === "third-person") return "free";
-      return "first-person";
-    });
-  };
 
   return (
     <div className="w-full h-screen">
@@ -292,8 +360,9 @@ export default function ClassroomScene() {
             position={[-3.0, -1.2, 1.2]}
             scale={0.9}
             visible={cameraMode !== "first-person"}
-            disabled={isSitting}
+            disabled={isSitting || isInConversation}
             initialRotation={Math.PI}
+            moveSpeed={8}
             onPositionChange={handleStickmanPositionChange}
           />
 
@@ -318,8 +387,8 @@ export default function ClassroomScene() {
               sensitivity={0.002}
               isMoving={isStickmanMoving}
               defaultPitch={-0.15}
-              initialYaw={isSitting ? sittingCameraYaw : 0}
-              isSitting={isSitting}
+              initialYaw={isSitting || isInConversation ? sittingCameraYaw : 0}
+              isSitting={isSitting || isInConversation}
             />
           )}
 
@@ -350,142 +419,169 @@ export default function ClassroomScene() {
       {/* Time Display */}
       <TimeDisplay />
 
+      {/* Camera mode indicator */}
+      <div className="absolute top-4 right-4 z-10 bg-white/90 backdrop-blur-sm rounded-lg p-2 shadow-lg">
+        <p className="text-sm font-medium text-gray-800">
+          📹{" "}
+          {cameraMode === "third-person"
+            ? "Góc nhìn thứ 3"
+            : cameraMode === "first-person"
+            ? "Góc nhìn thứ 1"
+            : "Camera tự do"}
+        </p>
+        <p className="text-xs text-gray-500 text-center">Phím C</p>
+      </div>
+
       {/* Notification System */}
       <NotificationSystem
         notifications={notifications}
         onRemoveNotification={removeNotification}
       />
 
+      {/* Debug Toggle Button */}
+      <button
+        onClick={() => setShowDebugInfo(!showDebugInfo)}
+        className="absolute top-4 left-4 z-20 bg-gray-800 hover:bg-gray-700 text-white px-3 py-2 rounded-lg shadow-lg transition-colors"
+        title={showDebugInfo ? "Ẩn Debug Info" : "Hiện Debug Info"}
+      >
+        {showDebugInfo ? "🔍 Ẩn Debug" : "🔍 Hiện Debug"}
+      </button>
+
       {/* Controls UI */}
-      <div className="absolute top-4 left-4 z-10 bg-white/90 backdrop-blur-sm rounded-lg p-4 shadow-lg max-w-sm">
-        <h2 className="text-lg font-bold text-gray-800 mb-3">🎮 Điều khiển</h2>
+      {showDebugInfo && (
+        <div className="absolute top-16 left-4 z-10 bg-white/90 backdrop-blur-sm rounded-lg p-4 shadow-lg max-w-sm">
+          <h2 className="text-lg font-bold text-gray-800 mb-3">
+            🎮 Điều khiển
+          </h2>
 
-        <div className="space-y-2 text-sm text-gray-700">
-          <div className="grid grid-cols-2 gap-2">
-            <div>
-              <strong>Di chuyển:</strong>
-              <div className="text-xs mt-1">
-                • W/↑: Đi thẳng
-                <br />
-                • S/↓: Đi lùi
-                <br />
-                • A/←: Quay trái
-                <br />• D/→: Quay phải
+          <div className="space-y-2 text-sm text-gray-700">
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <strong>Di chuyển:</strong>
+                <div className="text-xs mt-1">
+                  • W/↑: Đi thẳng
+                  <br />
+                  • S/↓: Đi lùi
+                  <br />
+                  • A/←: Quay trái
+                  <br />• D/→: Quay phải
+                </div>
+              </div>
+              <div>
+                <strong>Điều khiển:</strong>
+                <div className="text-xs mt-1 mb-2">
+                  • <kbd className="bg-gray-200 px-1 rounded">C</kbd>: Đổi
+                  camera
+                  <br />• <kbd className="bg-gray-200 px-1 rounded">F</kbd>:
+                  Tương tác
+                  <br />• <kbd className="bg-gray-200 px-1 rounded">ESC</kbd>:
+                  Thoát ngồi
+                  <br />
+                  {cameraMode === "first-person" &&
+                    "• Chuột trái + kéo: Nhìn quanh"}
+                  {cameraMode === "third-person" &&
+                    "• Chuột phải + kéo: Xoay cam"}
+                  {cameraMode === "free" && "• Chuột: Xoay, zoom"}
+                </div>
+                <button
+                  onClick={cycleCameraMode}
+                  className="block w-full px-2 py-1 bg-blue-500 text-white text-xs rounded hover:bg-blue-600 transition-colors"
+                  title="Hoặc nhấn phím C"
+                >
+                  📹 {cameraMode === "first-person" && "Góc nhìn thứ 1"}
+                  {cameraMode === "third-person" && "Góc nhìn thứ 3"}
+                  {cameraMode === "free" && "Camera tự do"}
+                </button>
+                <div className="text-xs mt-1 text-gray-500">
+                  Tank-style controls
+                </div>
               </div>
             </div>
-            <div>
-              <strong>Camera:</strong>
-              <div className="text-xs mt-1 mb-2">
-                {cameraMode === "first-person" && (
-                  <>
-                    • Chuột trái + kéo: Nhìn quanh
-                    <br />• Góc nhìn thứ nhất
-                  </>
-                )}
-                {cameraMode === "third-person" && (
-                  <>
-                    • Chuột phải + kéo: Xoay cam
-                    <br />• Di chuyển: Reset cam
-                  </>
-                )}
-                {cameraMode === "free" && (
-                  <>
-                    • Chuột: Xoay, zoom
-                    <br />• Camera tự do
-                  </>
-                )}
+
+            {/* Debug Section */}
+            <div className="border-t pt-2 mt-3">
+              <strong>Debug:</strong>
+              <div className="grid grid-cols-1 gap-1 mt-1">
+                <button
+                  onClick={() => setShowCollisionBoxes(!showCollisionBoxes)}
+                  className={`w-full px-2 py-1 text-xs rounded transition-colors ${
+                    showCollisionBoxes
+                      ? "bg-red-500 text-white hover:bg-red-600"
+                      : "bg-gray-500 text-white hover:bg-gray-600"
+                  }`}
+                >
+                  {showCollisionBoxes
+                    ? "Ẩn Collision Boxes"
+                    : "Hiện Collision Boxes"}
+                </button>
+
+                <button
+                  onClick={() => setShowPreviewBox(!showPreviewBox)}
+                  className={`w-full px-2 py-1 text-xs rounded transition-colors ${
+                    showPreviewBox
+                      ? "bg-gray-800 text-white hover:bg-gray-900"
+                      : "bg-gray-500 text-white hover:bg-gray-600"
+                  }`}
+                >
+                  {showPreviewBox ? "Ẩn Preview Box" : "Hiện Preview Box"}
+                </button>
+
+                <button
+                  onClick={() => setShowCheckpointBoxes(!showCheckpointBoxes)}
+                  className={`w-full px-2 py-1 text-xs rounded transition-colors ${
+                    showCheckpointBoxes
+                      ? "bg-purple-500 text-white hover:bg-purple-600"
+                      : "bg-gray-500 text-white hover:bg-gray-600"
+                  }`}
+                >
+                  {showCheckpointBoxes
+                    ? "Ẩn Checkpoint Boxes"
+                    : "Hiện Checkpoint Boxes"}
+                </button>
+
+                <button
+                  onClick={() =>
+                    setShowCheckpointPreview(!showCheckpointPreview)
+                  }
+                  className={`w-full px-2 py-1 text-xs rounded transition-colors ${
+                    showCheckpointPreview
+                      ? "bg-purple-800 text-white hover:bg-purple-900"
+                      : "bg-gray-500 text-white hover:bg-gray-600"
+                  }`}
+                >
+                  {showCheckpointPreview
+                    ? "Ẩn Checkpoint Preview"
+                    : "Hiện Checkpoint Preview"}
+                </button>
               </div>
-              <button
-                onClick={cycleCameraMode}
-                className="block w-full px-2 py-1 bg-blue-500 text-white text-xs rounded hover:bg-blue-600 transition-colors"
-              >
-                {cameraMode === "first-person" && "First Person"}
-                {cameraMode === "third-person" && "Third Person"}
-                {cameraMode === "free" && "Free Cam"}
-              </button>
-              <div className="text-xs mt-1 text-gray-500">
-                Tank-style controls
-              </div>
-            </div>
-          </div>
-
-          {/* Debug Section */}
-          <div className="border-t pt-2 mt-3">
-            <strong>Debug:</strong>
-            <div className="grid grid-cols-1 gap-1 mt-1">
-              <button
-                onClick={() => setShowCollisionBoxes(!showCollisionBoxes)}
-                className={`w-full px-2 py-1 text-xs rounded transition-colors ${
-                  showCollisionBoxes
-                    ? "bg-red-500 text-white hover:bg-red-600"
-                    : "bg-gray-500 text-white hover:bg-gray-600"
-                }`}
-              >
-                {showCollisionBoxes
-                  ? "Ẩn Collision Boxes"
-                  : "Hiện Collision Boxes"}
-              </button>
-
-              <button
-                onClick={() => setShowPreviewBox(!showPreviewBox)}
-                className={`w-full px-2 py-1 text-xs rounded transition-colors ${
-                  showPreviewBox
-                    ? "bg-gray-800 text-white hover:bg-gray-900"
-                    : "bg-gray-500 text-white hover:bg-gray-600"
-                }`}
-              >
-                {showPreviewBox ? "Ẩn Preview Box" : "Hiện Preview Box"}
-              </button>
-
-              <button
-                onClick={() => setShowCheckpointBoxes(!showCheckpointBoxes)}
-                className={`w-full px-2 py-1 text-xs rounded transition-colors ${
-                  showCheckpointBoxes
-                    ? "bg-purple-500 text-white hover:bg-purple-600"
-                    : "bg-gray-500 text-white hover:bg-gray-600"
-                }`}
-              >
-                {showCheckpointBoxes
-                  ? "Ẩn Checkpoint Boxes"
-                  : "Hiện Checkpoint Boxes"}
-              </button>
-
-              <button
-                onClick={() => setShowCheckpointPreview(!showCheckpointPreview)}
-                className={`w-full px-2 py-1 text-xs rounded transition-colors ${
-                  showCheckpointPreview
-                    ? "bg-purple-800 text-white hover:bg-purple-900"
-                    : "bg-gray-500 text-white hover:bg-gray-600"
-                }`}
-              >
-                {showCheckpointPreview
-                  ? "Ẩn Checkpoint Preview"
-                  : "Hiện Checkpoint Preview"}
-              </button>
             </div>
           </div>
         </div>
-      </div>
+      )}
 
       {/* Collision Helper */}
-      <CollisionHelper
-        characterPosition={stickmanPosition}
-        onPreviewSizeChange={setPreviewBoxSize}
-      />
+      {showDebugInfo && (
+        <CollisionHelper
+          characterPosition={stickmanPosition}
+          onPreviewSizeChange={setPreviewBoxSize}
+        />
+      )}
 
       {/* Checkpoint Helper */}
-      <CheckpointHelper
-        characterPosition={stickmanPosition}
-        onAddCheckpoint={handleAddCheckpoint}
-        onPreviewSizeChange={(size) => {
-          setCheckpointPreviewSize(size);
-          // Also update checkpoint type if needed
-          setCheckpointType("seat");
-        }}
-      />
+      {showDebugInfo && (
+        <CheckpointHelper
+          characterPosition={stickmanPosition}
+          onAddCheckpoint={handleAddCheckpoint}
+          onPreviewSizeChange={(size) => {
+            setCheckpointPreviewSize(size);
+            // Also update checkpoint type if needed
+            setCheckpointType("seat");
+          }}
+        />
+      )}
 
       {/* Debug Info */}
-      {process.env.NODE_ENV === "development" && (
+      {showDebugInfo && process.env.NODE_ENV === "development" && (
         <div className="fixed bottom-4 right-4 z-30 bg-black/80 text-white p-2 rounded text-xs space-y-1">
           <div>Sitting: {isSitting ? "Yes" : "No"}</div>
           <div>
@@ -519,6 +615,7 @@ export default function ClassroomScene() {
       <InteractionButton
         visible={
           !isSitting &&
+          !isInConversation &&
           (nearbyInteractable?.type === "seat" ||
             nearbyInteractable?.type === "teacher")
         }
@@ -529,7 +626,16 @@ export default function ClassroomScene() {
             ? handleTeacherInteraction
             : handleSeatInteraction
         }
-        disabled={isSitting}
+        disabled={isSitting || isInConversation}
+      />
+
+      {/* Chat Dialog */}
+      <ChatDialog
+        visible={showTeacherDialog}
+        speakerName="Sensei"
+        messages={teacherMessages}
+        onClose={handleCloseTeacherDialog}
+        position={{ x: 50, y: 25 }}
       />
 
       {/* Sitting mode indicator */}

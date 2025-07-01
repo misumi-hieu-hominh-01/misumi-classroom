@@ -8,6 +8,12 @@ import {
   findNearestValidPosition,
   calculateHeight,
 } from "../scene/CollisionSystem";
+import {
+  registerDynamicObject,
+  unregisterDynamicObject,
+  updateDynamicObjectPosition,
+  findValidPositionAvoidingDynamic,
+} from "../scene/DynamicCollisionSystem";
 
 interface StickManProps {
   position?: [number, number, number];
@@ -15,6 +21,7 @@ interface StickManProps {
   visible?: boolean;
   disabled?: boolean; // Vô hiệu hóa di chuyển khi đang ngồi
   initialRotation?: number; // Rotation khởi tạo
+  moveSpeed?: number; // Tốc độ di chuyển (mặc định 8)
   onPositionChange?: (
     position: Vector3,
     rotation: number,
@@ -42,27 +49,39 @@ export default function StickMan({
   visible = true,
   disabled = false,
   initialRotation = 0,
+  moveSpeed = 8,
   onPositionChange,
 }: StickManProps) {
   const group = useRef<Group>(null);
   const idleGroup = useRef<Group>(null);
   const walkingGroup = useRef<Group>(null);
+  const runningGroup = useRef<Group>(null);
 
-  // Load cả hai models
+  // Load tất cả animation models
   const idleModel = useGLTF("/animation/idle.glb");
   const walkingModel = useGLTF("/animation/walking.glb");
+  const runningModel = useGLTF("/animation/running.glb");
 
-  // Process animations để remove root motion cho walking model
+  // Process animations để remove root motion cho walking và running models
   const processedWalkingAnimations = useMemo(() => {
     if (!walkingModel.animations.length) return walkingModel.animations;
 
-    console.log("Processing walking animations to remove root motion...");
     walkingModel.animations.forEach((clip) => {
       removeRootMotion(clip, "mixamorigHips");
     });
 
     return walkingModel.animations;
   }, [walkingModel.animations]);
+
+  const processedRunningAnimations = useMemo(() => {
+    if (!runningModel.animations.length) return runningModel.animations;
+
+    runningModel.animations.forEach((clip) => {
+      removeRootMotion(clip, "mixamorigHips");
+    });
+
+    return runningModel.animations;
+  }, [runningModel.animations]);
 
   // Sử dụng animations cho từng model với ref riêng biệt
   const { actions: idleActions, names: idleNames } = useAnimations(
@@ -73,6 +92,10 @@ export default function StickMan({
     processedWalkingAnimations,
     walkingGroup
   );
+  const { actions: runningActions, names: runningNames } = useAnimations(
+    processedRunningAnimations,
+    runningGroup
+  );
 
   const keysPressed = useRef<KeysPressed>({});
   const moveDirection = useRef(new Vector3());
@@ -82,19 +105,22 @@ export default function StickMan({
   const currentRotation = useRef(initialRotation);
   const rotationSpeed = 3; // Tốc độ quay
 
+  // Player collision properties
+  const playerId = "stickman-player";
+  const playerRadius = 0.5;
+
   // Animation state
   const [isWalking, setIsWalking] = useState(false);
+  const [isRunning, setIsRunning] = useState(false);
 
   // Animation names mapping
   const animationNames = useMemo(() => {
-    console.log("Available idle animations:", idleNames);
-    console.log("Available walking animations:", walkingNames);
-
     return {
       idle: idleNames.length > 0 ? idleNames[0] : null,
       walk: walkingNames.length > 0 ? walkingNames[0] : null,
+      run: runningNames.length > 0 ? runningNames[0] : null,
     };
-  }, [idleNames, walkingNames]);
+  }, [idleNames, walkingNames, runningNames]);
 
   // Keyboard event listeners
   useMemo(() => {
@@ -119,16 +145,37 @@ export default function StickMan({
 
   // Animation switching logic
   useEffect(() => {
-    if (isWalking) {
-      // Stop idle animations
-      if (idleActions && animationNames.idle) {
-        const idleAction = idleActions[animationNames.idle];
-        if (idleAction) {
-          idleAction.stop();
+    // Stop all animations first
+    if (idleActions && animationNames.idle) {
+      const idleAction = idleActions[animationNames.idle];
+      if (idleAction) {
+        idleAction.stop();
+      }
+    }
+    if (walkingActions && animationNames.walk) {
+      const walkAction = walkingActions[animationNames.walk];
+      if (walkAction) {
+        walkAction.stop();
+      }
+    }
+    if (runningActions && animationNames.run) {
+      const runAction = runningActions[animationNames.run];
+      if (runAction) {
+        runAction.stop();
+      }
+    }
+
+    // Play appropriate animation
+    if (isRunning) {
+      // Play running animation
+      if (runningActions && animationNames.run) {
+        const runAction = runningActions[animationNames.run];
+        if (runAction) {
+          runAction.reset().play();
         }
       }
-
-      // Play walking animations
+    } else if (isWalking) {
+      // Play walking animation
       if (walkingActions && animationNames.walk) {
         const walkAction = walkingActions[animationNames.walk];
         if (walkAction) {
@@ -136,15 +183,7 @@ export default function StickMan({
         }
       }
     } else {
-      // Stop walking animations
-      if (walkingActions && animationNames.walk) {
-        const walkAction = walkingActions[animationNames.walk];
-        if (walkAction) {
-          walkAction.stop();
-        }
-      }
-
-      // Play idle animations
+      // Play idle animation
       if (idleActions && animationNames.idle) {
         const idleAction = idleActions[animationNames.idle];
         if (idleAction) {
@@ -152,17 +191,24 @@ export default function StickMan({
         }
       }
     }
-  }, [isWalking, idleActions, walkingActions, animationNames]);
+  }, [
+    isWalking,
+    isRunning,
+    idleActions,
+    walkingActions,
+    runningActions,
+    animationNames,
+  ]);
 
   // Khởi tạo idle animation khi component mount
   useEffect(() => {
-    if (idleActions && animationNames.idle && !isWalking) {
+    if (idleActions && animationNames.idle && !isWalking && !isRunning) {
       const idleAction = idleActions[animationNames.idle];
       if (idleAction) {
         idleAction.play();
       }
     }
-  }, [idleActions, animationNames.idle, isWalking]);
+  }, [idleActions, animationNames.idle, isWalking, isRunning]);
 
   // Set initial rotation for group
   useEffect(() => {
@@ -171,10 +217,25 @@ export default function StickMan({
     }
   }, [initialRotation]);
 
+  // Register player in dynamic collision system
+  useEffect(() => {
+    registerDynamicObject({
+      id: playerId,
+      position: currentPosition.current,
+      radius: playerRadius,
+      type: "player",
+    });
+
+    // Cleanup when component unmounts
+    return () => {
+      unregisterDynamicObject(playerId);
+    };
+  }, [playerId, playerRadius]);
+
   useFrame((state, delta) => {
     if (!group.current) return;
 
-    const speed = 8;
+    const speed = moveSpeed;
     const keys = keysPressed.current;
     let isMoving = false;
 
@@ -183,6 +244,9 @@ export default function StickMan({
       // Still update animation state to idle when disabled
       if (isWalking !== false) {
         setIsWalking(false);
+      }
+      if (isRunning !== false) {
+        setIsRunning(false);
       }
       return;
     }
@@ -212,9 +276,16 @@ export default function StickMan({
       isMoving = true;
     }
 
+    // Cập nhật animation state dựa trên tốc độ và movement
+    const shouldBeRunning = isMoving && moveSpeed > 15;
+    const shouldBeWalking = isMoving && moveSpeed <= 15;
+
     // Cập nhật animation state chỉ khi cần thiết
-    if (isWalking !== isMoving) {
-      setIsWalking(isMoving);
+    if (isRunning !== shouldBeRunning) {
+      setIsRunning(shouldBeRunning);
+    }
+    if (isWalking !== shouldBeWalking) {
+      setIsWalking(shouldBeWalking);
     }
 
     // Apply movement relative to character rotation with collision detection
@@ -234,16 +305,27 @@ export default function StickMan({
       targetPosition.z += movement.z;
       // Y position sẽ được tính toán bởi height zones
 
-      // Check collision and find valid position with dynamic height
-      const validPosition = findNearestValidPosition(
+      // Check collision with static objects (walls, furniture)
+      const staticValidPosition = findNearestValidPosition(
         targetPosition,
         currentPosition.current,
-        0.5 // Character radius
+        playerRadius
+      );
+
+      // Check collision with dynamic objects (cat, other NPCs)
+      const finalValidPosition = findValidPositionAvoidingDynamic(
+        staticValidPosition,
+        currentPosition.current,
+        playerRadius,
+        playerId
       );
 
       // Update position only if different from current
-      if (!validPosition.equals(currentPosition.current)) {
-        currentPosition.current.copy(validPosition);
+      if (!finalValidPosition.equals(currentPosition.current)) {
+        currentPosition.current.copy(finalValidPosition);
+
+        // Update position in dynamic collision system
+        updateDynamicObjectPosition(playerId, currentPosition.current);
       }
     }
 
@@ -276,22 +358,30 @@ export default function StickMan({
       visible={visible}
     >
       {/* Hiển thị idle model với Y offset riêng */}
-      {!isWalking && (
+      {!isWalking && !isRunning && (
         <group ref={idleGroup} position={[0, 0.1, 0]}>
           <primitive object={idleModel.scene} scale={scale} />
         </group>
       )}
 
       {/* Hiển thị walking model với Y offset riêng */}
-      {isWalking && (
+      {isWalking && !isRunning && (
         <group ref={walkingGroup} position={[0, -1.2, 0]}>
           <primitive object={walkingModel.scene} scale={scale} />
+        </group>
+      )}
+
+      {/* Hiển thị running model với Y offset riêng */}
+      {isRunning && (
+        <group ref={runningGroup} position={[0, -1.2, 0]}>
+          <primitive object={runningModel.scene} scale={scale} />
         </group>
       )}
     </group>
   );
 }
 
-// Preload cả hai models
+// Preload tất cả animation models
 useGLTF.preload("/animation/idle.glb");
 useGLTF.preload("/animation/walking.glb");
+useGLTF.preload("/animation/running.glb");

@@ -1,13 +1,30 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import {
+  BookOpenText,
+  Table,
+  Presentation,
+  DoorOpen,
+  MessageCircleMore,
+  CheckCircle,
+  University,
+} from "lucide-react";
 
 interface InteractionButtonProps {
   visible: boolean;
-  checkpointType: "seat" | "desk" | "board" | "door" | "teacher" | "custom";
+  checkpointType:
+    | "seat"
+    | "desk"
+    | "board"
+    | "door"
+    | "teacher"
+    | "university"
+    | "custom";
   checkpointName: string;
   onInteract: () => void;
   disabled?: boolean;
+  keyboardKey?: string;
 }
 
 export default function InteractionButton({
@@ -16,6 +33,7 @@ export default function InteractionButton({
   checkpointName,
   onInteract,
   disabled = false,
+  keyboardKey = "F",
 }: InteractionButtonProps) {
   const [isPressed, setIsPressed] = useState(false);
   const [showTooltip, setShowTooltip] = useState(false);
@@ -31,71 +49,25 @@ export default function InteractionButton({
   }, [visible]);
 
   const getIcon = () => {
+    const iconSize = 32; // w-8 h-8 = 32px
+
     switch (checkpointType) {
       case "seat":
-        return (
-          <svg
-            className="w-8 h-8 text-blue-600"
-            fill="currentColor"
-            viewBox="0 0 24 24"
-          >
-            <path d="M7 11h2v2H7zm0 4h10v-2H7v2zm0-8h2V5H7v2zm4 0h2V5h-2v2zm4 0h2V5h-2v2zM7 15h10v6H7v-6z" />
-            <path d="M3 3v16h18V3H3zm16 14H5V5h14v12z" />
-          </svg>
-        );
+        return <BookOpenText size={iconSize} className="text-blue-600" />;
       case "desk":
-        return (
-          <svg
-            className="w-8 h-8 text-amber-600"
-            fill="currentColor"
-            viewBox="0 0 24 24"
-          >
-            <path d="M20 6H4c-1.1 0-2 .9-2 2v8c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zM4 16V8h16v8H4z" />
-          </svg>
-        );
+        return <Table size={iconSize} className="text-amber-600" />;
       case "board":
-        return (
-          <svg
-            className="w-8 h-8 text-green-600"
-            fill="currentColor"
-            viewBox="0 0 24 24"
-          >
-            <path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zM5 19V5h14v14H5z" />
-            <path d="M9 7h6v2H9zm0 4h6v2H9z" />
-          </svg>
-        );
+        return <Presentation size={iconSize} className="text-green-600" />;
       case "door":
-        return (
-          <svg
-            className="w-8 h-8 text-red-600"
-            fill="currentColor"
-            viewBox="0 0 24 24"
-          >
-            <path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zM5 19V5h14v14H5z" />
-            <circle cx="16" cy="12" r="1" />
-          </svg>
-        );
+        return <DoorOpen size={iconSize} className="text-red-600" />;
       case "teacher":
         return (
-          <svg
-            className="w-8 h-8 text-orange-600"
-            fill="currentColor"
-            viewBox="0 0 24 24"
-          >
-            <path d="M12 2c1.1 0 2 .9 2 2s-.9 2-2 2-2-.9-2-2 .9-2 2-2zm9 7h-6v13h-2v-6h-2v6H9V9H3V7h18v2z" />
-            <path d="M12 7c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2z" />
-          </svg>
+          <MessageCircleMore size={iconSize} className="text-orange-600" />
         );
+      case "university":
+        return <University size={iconSize} className="text-blue-600" />;
       default:
-        return (
-          <svg
-            className="w-8 h-8 text-purple-600"
-            fill="currentColor"
-            viewBox="0 0 24 24"
-          >
-            <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z" />
-          </svg>
-        );
+        return <CheckCircle size={iconSize} className="text-purple-600" />;
     }
   };
 
@@ -111,6 +83,8 @@ export default function InteractionButton({
         return "Mở cửa";
       case "teacher":
         return "Nói chuyện";
+      case "university":
+        return "Vào trường đại học";
       default:
         return "Tương tác";
     }
@@ -151,6 +125,7 @@ export default function InteractionButton({
           border-4 border-gray-200 hover:border-blue-300
           transform transition-all duration-300 ease-out
           hover:scale-110 active:scale-95
+          cursor-pointer
           disabled:opacity-50 disabled:cursor-not-allowed
           ${isPressed ? "scale-95" : ""}
           group overflow-hidden
@@ -170,7 +145,7 @@ export default function InteractionButton({
 
         {/* Action indicator */}
         <div className="absolute -bottom-1 left-1/2 transform -translate-x-1/2 bg-blue-500 text-white text-xs px-2 py-0.5 rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-          <kbd className=" px-1 rounded">F</kbd>
+          <kbd className=" px-1 rounded">{keyboardKey}</kbd>
         </div>
       </button>
     </div>

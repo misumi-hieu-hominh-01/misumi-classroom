@@ -13,8 +13,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Avadol World",
-  description: "Avadol World",
+  title: "Avadoland",
+  description: "Avadoland",
 };
 
 export default function RootLayout({

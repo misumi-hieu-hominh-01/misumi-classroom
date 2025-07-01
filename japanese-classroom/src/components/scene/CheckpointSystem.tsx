@@ -311,11 +311,6 @@ export function checkCheckpoints(
 export function triggerCheckpoint(checkpoint: Checkpoint): void {
   checkpoint.triggered = true;
   checkpoint.lastTriggered = Date.now();
-
-  // Log để debug
-  console.log(
-    `Checkpoint triggered: ${checkpoint.name} - ${checkpoint.message}`
-  );
 }
 
 // Reset trạng thái của tất cả checkpoint

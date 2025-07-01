@@ -32,14 +32,6 @@ export default function FirstPersonCamera({
 
   // Reset camera angles when initialYaw changes
   useEffect(() => {
-    if (process.env.NODE_ENV === "development") {
-      console.log(
-        `FirstPersonCamera: Setting initialYaw to ${(
-          (initialYaw * 180) /
-          Math.PI
-        ).toFixed(1)}° (Sitting: ${isSitting})`
-      );
-    }
     setMouseAngleY(initialYaw);
   }, [initialYaw, isSitting]);
 
@@ -181,22 +173,6 @@ export default function FirstPersonCamera({
     // When sitting, ignore character rotation and use only camera angle
     const finalYaw = isSitting ? mouseAngleY : targetRotation + mouseAngleY;
     const finalPitch = mouseAngleX;
-
-    // Debug log for sitting mode (only log occasionally to avoid spam)
-    if (
-      isSitting &&
-      Math.random() < 0.01 &&
-      process.env.NODE_ENV === "development"
-    ) {
-      console.log(
-        `Camera angles - Target: ${((targetRotation * 180) / Math.PI).toFixed(
-          1
-        )}°, Mouse: ${((mouseAngleY * 180) / Math.PI).toFixed(1)}°, Final: ${(
-          (finalYaw * 180) /
-          Math.PI
-        ).toFixed(1)}°`
-      );
-    }
 
     // Calculate look direction
     const lookDirection = new Vector3();

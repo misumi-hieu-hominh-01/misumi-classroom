@@ -5,4 +5,5 @@ export {
   useNotifications,
 } from "./NotificationSystem";
 export { default as InteractionButton } from "./InteractionButton";
+export { default as ChatDialog } from "./ChatDialog";
 export { default } from "./TimeDisplay";

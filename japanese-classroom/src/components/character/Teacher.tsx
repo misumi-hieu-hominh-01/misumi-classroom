@@ -162,17 +162,6 @@ export default function Teacher({
       // Smooth interpolation
       const smoothingFactor = 0.05;
       group.current.rotation.y += adjustedDiff * smoothingFactor;
-
-      // Debug log
-      if (process.env.NODE_ENV === "development") {
-        console.log(`Teacher rotating towards player:
-          Teacher pos: (${teacherPos.x.toFixed(1)}, ${teacherPos.z.toFixed(1)})
-          Player pos: (${playerPosition.x.toFixed(
-            1
-          )}, ${playerPosition.z.toFixed(1)})
-          Target Y: ${((targetY * 180) / Math.PI).toFixed(1)}°
-          Current Y: ${((currentRotation * 180) / Math.PI).toFixed(1)}°`);
-      }
     } else if (isReturningToDefault && shouldReturnToDefault) {
       // Return to default rotation after delay
       const defaultY = rotation[1];
