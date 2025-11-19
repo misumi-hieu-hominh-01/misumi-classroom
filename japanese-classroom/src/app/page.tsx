@@ -2,7 +2,7 @@
 
 import dynamic from "next/dynamic";
 import { useState, useCallback } from "react";
-import { AudioController } from "../components/ui";
+import { AudioController, Header } from "../components/ui";
 
 // Dynamic import để tránh SSR issues với Three.js
 const ClassroomScene = dynamic(() => import("../components/scene"), {
@@ -48,6 +48,9 @@ export default function Home() {
 
   return (
     <main className="w-full h-screen overflow-hidden">
+      {/* Header */}
+      <Header />
+
       {currentScene === "city" ? (
         <CityScene onEnterClassroom={handleEnterClassroom} />
       ) : (
@@ -56,20 +59,6 @@ export default function Home() {
 
       {/* Audio Controller */}
       <AudioController />
-
-      {/* Scene indicator */}
-      <div className="absolute top-4 right-4 z-10 bg-white/90 backdrop-blur-sm rounded-lg p-3 shadow-lg">
-        <h1 className="text-lg font-bold text-gray-800">
-          {currentScene === "city"
-            ? "🏙️ Thành phố thu nhỏ"
-            : "🏫 Phòng học tiếng Nhật 3D"}
-        </h1>
-        <p className="text-xs text-gray-600 mt-1">
-          {currentScene === "city"
-            ? "WASD: Di chuyển | C: Đổi camera"
-            : "WASD: Di chuyển | C: Đổi camera | F: Tương tác"}
-        </p>
-      </div>
     </main>
   );
 }

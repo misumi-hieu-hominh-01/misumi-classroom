@@ -540,18 +540,6 @@ export default function CityScene({ onEnterClassroom }: CitySceneProps) {
         </div>
       )}
 
-      {/* Camera mode indicator */}
-      <div className="absolute top-4 right-4 z-10 bg-white/90 backdrop-blur-sm rounded-lg p-2 shadow-lg">
-        <p className="text-sm font-medium text-gray-800">
-          📹{" "}
-          {cameraMode === "third-person"
-            ? "Góc nhìn thứ 3"
-            : cameraMode === "first-person"
-            ? "Góc nhìn thứ 1"
-            : "Tự do"}
-        </p>
-      </div>
-
       {/* Interaction button */}
       {nearUniversityEntrance && (
         <InteractionButton

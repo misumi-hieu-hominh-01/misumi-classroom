@@ -6,6 +6,8 @@ import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { UsersModule } from './users/users.module';
 import { AuthModule } from './auth/auth.module';
+import { ContentModule } from './content/content.module';
+import { AttemptsModule } from './attempts/attempts.module';
 import databaseConfig from './config/database.config';
 import jwtConfig from './config/jwt.config';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
@@ -28,6 +30,8 @@ import { TransformInterceptor } from './common/interceptors/transform.intercepto
     }),
     UsersModule,
     AuthModule,
+    ContentModule,
+    AttemptsModule,
   ],
   controllers: [AppController],
   providers: [

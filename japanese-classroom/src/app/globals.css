@@ -1,5 +1,9 @@
 @import "tailwindcss";
 
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
 :root {
   --background: #ffffff;
   --foreground: #171717;
@@ -77,4 +81,11 @@ body {
 
 .animate-fade-in {
   animation: fade-in 0.3s ease-out;
+}
+
+@layer utilities {
+  .no-ms-clear::-ms-reveal,
+  .no-ms-clear::-ms-clear {
+    display: none;
+  }
 }
