@@ -24,6 +24,9 @@ import { CreateKanjiTestDto } from './dto/create-kanji-test.dto';
 import { UpdateKanjiTestDto } from './dto/update-kanji-test.dto';
 import { CreateGrammarTestDto } from './dto/create-grammar-test.dto';
 import { UpdateGrammarTestDto } from './dto/update-grammar-test.dto';
+import { BulkCreateVocabItemDto } from './dto/bulk-create-vocab-item.dto';
+import { BulkCreateKanjiItemDto } from './dto/bulk-create-kanji-item.dto';
+import { BulkCreateGrammarPointDto } from './dto/bulk-create-grammar-point.dto';
 import { FilterContentDto } from './dto/filter-content.dto';
 import { PaginationDto } from '../common/dto/pagination.dto';
 import { RolesGuard } from '../common/guards/roles.guard';
@@ -72,6 +75,14 @@ export class ContentController {
     await this.contentService.deleteVocabItem(id);
   }
 
+  @Post('vocab/bulk')
+  @UseGuards(RolesGuard)
+  @Roles('admin')
+  @HttpCode(HttpStatus.CREATED)
+  async bulkCreateVocabItems(@Body() bulkCreateDto: BulkCreateVocabItemDto) {
+    return this.contentService.bulkCreateVocabItems(bulkCreateDto);
+  }
+
   @Get('kanji')
   async findAllKanjiItems(
     @Query() filterDto: FilterContentDto,
@@ -109,6 +120,14 @@ export class ContentController {
   @HttpCode(HttpStatus.NO_CONTENT)
   async deleteKanjiItem(@Param('id') id: string) {
     await this.contentService.deleteKanjiItem(id);
+  }
+
+  @Post('kanji/bulk')
+  @UseGuards(RolesGuard)
+  @Roles('admin')
+  @HttpCode(HttpStatus.CREATED)
+  async bulkCreateKanjiItems(@Body() bulkCreateDto: BulkCreateKanjiItemDto) {
+    return this.contentService.bulkCreateKanjiItems(bulkCreateDto);
   }
 
   @Get('grammar')
@@ -150,6 +169,16 @@ export class ContentController {
   @HttpCode(HttpStatus.NO_CONTENT)
   async deleteGrammarPoint(@Param('id') id: string) {
     await this.contentService.deleteGrammarPoint(id);
+  }
+
+  @Post('grammar/bulk')
+  @UseGuards(RolesGuard)
+  @Roles('admin')
+  @HttpCode(HttpStatus.CREATED)
+  async bulkCreateGrammarPoints(
+    @Body() bulkCreateDto: BulkCreateGrammarPointDto,
+  ) {
+    return this.contentService.bulkCreateGrammarPoints(bulkCreateDto);
   }
 
   @Get('vocab-tests')

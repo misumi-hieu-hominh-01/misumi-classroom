@@ -25,6 +25,9 @@ import { CreateKanjiTestDto } from './dto/create-kanji-test.dto';
 import { UpdateKanjiTestDto } from './dto/update-kanji-test.dto';
 import { CreateGrammarTestDto } from './dto/create-grammar-test.dto';
 import { UpdateGrammarTestDto } from './dto/update-grammar-test.dto';
+import { BulkCreateVocabItemDto } from './dto/bulk-create-vocab-item.dto';
+import { BulkCreateKanjiItemDto } from './dto/bulk-create-kanji-item.dto';
+import { BulkCreateGrammarPointDto } from './dto/bulk-create-grammar-point.dto';
 import { FilterContentDto } from './dto/filter-content.dto';
 import { PaginationDto } from '../common/dto/pagination.dto';
 
@@ -107,6 +110,15 @@ export class ContentService {
     }
   }
 
+  async bulkCreateVocabItems(
+    bulkCreateDto: BulkCreateVocabItemDto,
+  ): Promise<VocabItemDocument[]> {
+    const items = bulkCreateDto.items.map(
+      (item) => new this.vocabItemModel(item),
+    );
+    return this.vocabItemModel.insertMany(items);
+  }
+
   async createKanjiItem(
     createKanjiItemDto: CreateKanjiItemDto,
   ): Promise<KanjiItemDocument> {
@@ -166,6 +178,15 @@ export class ContentService {
     if (!result) {
       throw new NotFoundException('Kanji item not found');
     }
+  }
+
+  async bulkCreateKanjiItems(
+    bulkCreateDto: BulkCreateKanjiItemDto,
+  ): Promise<KanjiItemDocument[]> {
+    const items = bulkCreateDto.items.map(
+      (item) => new this.kanjiItemModel(item),
+    );
+    return this.kanjiItemModel.insertMany(items);
   }
 
   async createGrammarPoint(
@@ -228,6 +249,15 @@ export class ContentService {
     if (!result) {
       throw new NotFoundException('Grammar point not found');
     }
+  }
+
+  async bulkCreateGrammarPoints(
+    bulkCreateDto: BulkCreateGrammarPointDto,
+  ): Promise<GrammarPointDocument[]> {
+    const items = bulkCreateDto.items.map(
+      (item) => new this.grammarPointModel(item),
+    );
+    return this.grammarPointModel.insertMany(items);
   }
 
   async createVocabTest(

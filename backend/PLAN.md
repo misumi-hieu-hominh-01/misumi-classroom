@@ -295,8 +295,8 @@ src/
 
 ### Milestone 2: Content & Attempts
 
-- [ ] Model + CRUD tối thiểu cho `content_*_items` và `*_tests` (Admin)
-- [ ] Endpoint submit attempt `user_attempts_*`
+- [x] Model + CRUD tối thiểu cho `content_*_items` và `*_tests` (Admin)
+- [x] Endpoint submit attempt `user_attempts_*`
 
 ### Milestone 3: Daily state & attendance
 
