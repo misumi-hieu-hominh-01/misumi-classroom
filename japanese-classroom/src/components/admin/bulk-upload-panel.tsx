@@ -80,7 +80,7 @@ export function BulkUploadPanel({
   // 2. Parse Excel data
   const parseExcelData = (
     text: string
-  ): { rows: ParsedRow[]; headers: string[] } => {
+  ): { rows: ParsedRow[]; headers: string[]; error?: string } => {
     // Chuẩn hoá line breaks
     const normalizedText = text.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
 
@@ -92,70 +92,186 @@ export function BulkUploadPanel({
         : normalizedText;
 
     const delimiter = firstLine.includes("\t") ? "\t" : ",";
-    const expectedColumnCount = firstLine.split(delimiter).length;
 
-    // Parse header
-    const parsedHeaders = firstLine.split(delimiter).map((h) => h.trim());
+    // Luôn sử dụng field config mặc định, không cần header
+    const parsedHeaders = getFieldNames();
+    const expectedColumnCount = parsedHeaders.length;
+    const startLine = 0; // Bắt đầu từ dòng đầu tiên
 
     if (parsedHeaders.length === 0) return { rows: [], headers: [] };
+
+    // Xác định các cột có thể rỗng (chỉ synonyms và antonyms cho vocab)
+    const optionalColumns: string[] = [];
+    if (type === "vocab") {
+      const synonymsIndex = parsedHeaders.indexOf("synonyms[]");
+      const antonymsIndex = parsedHeaders.indexOf("antonyms[]");
+      if (synonymsIndex >= 0) optionalColumns.push("synonyms[]");
+      if (antonymsIndex >= 0) optionalColumns.push("antonyms[]");
+    }
+    // Số cột tối thiểu = tổng số cột - số cột optional
+    const minColumnCount = expectedColumnCount - optionalColumns.length;
+
+    // Hàm validate số cột
+    const validateColumnCount = (
+      values: string[],
+      rowNumber: number
+    ): string | null => {
+      const actualCount = values.length;
+      // Cho phép đủ số cột hoặc thiếu tối đa các cột optional ở cuối
+      if (actualCount < minColumnCount) {
+        return `Dòng ${rowNumber}: Thiếu cột. Cần ít nhất ${minColumnCount} cột, nhưng chỉ có ${actualCount} cột.`;
+      }
+      if (actualCount > expectedColumnCount) {
+        return `Dòng ${rowNumber}: Thừa cột. Chỉ cần ${expectedColumnCount} cột, nhưng có ${actualCount} cột.`;
+      }
+      // Nếu thiếu cột nhưng trong phạm vi cho phép (chỉ thiếu optional columns)
+      if (actualCount < expectedColumnCount) {
+        const missingCount = expectedColumnCount - actualCount;
+        if (missingCount > optionalColumns.length) {
+          return `Dòng ${rowNumber}: Thiếu ${missingCount} cột. Chỉ cho phép thiếu tối đa ${
+            optionalColumns.length
+          } cột cuối (${optionalColumns.join(", ")}).`;
+        }
+      }
+      return null;
+    };
 
     // Parse rows: với tab delimiter, mỗi dòng thực sự phải có đúng số tab = expectedColumnCount - 1
     // Nếu một dòng có ít tab hơn, có thể là do line break trong cell, cần gộp với dòng tiếp theo
     const rows: ParsedRow[] = [];
     const seen = new Set<string>(); // set để chống trùng cả dòng
+    let rowNumber = 1; // Đếm số dòng để báo lỗi
 
     if (delimiter === "\t") {
       // Xử lý tab-delimited: gộp các dòng có ít tab hơn expected
-      const allLines = normalizedText.split("\n").map((l) => l.trim());
+      const allLines = normalizedText.split("\n");
       let currentRow = "";
 
-      for (let i = 1; i < allLines.length; i++) {
+      // Xác định các field bắt buộc để kiểm tra dòng mới
+      const requiredFields =
+        type === "vocab"
+          ? ["term", "reading"]
+          : type === "kanji"
+          ? ["kanji"]
+          : ["title"];
+      const firstRequiredFieldIndex = parsedHeaders.findIndex(
+        (h) => h === requiredFields[0] || h.startsWith(requiredFields[0])
+      );
+
+      for (let i = startLine; i < allLines.length; i++) {
         const line = allLines[i];
+        const trimmedLine = line.trim();
 
         // Bỏ qua dòng trống hoàn toàn
-        if (!line) {
+        if (!trimmedLine) {
           // Nếu đang gộp dòng, tiếp tục gộp (có thể là line break trong cell)
           if (currentRow) {
-            currentRow += "\n" + line;
+            currentRow += "\n";
           }
           continue;
         }
 
+        // Kiểm tra xem dòng này có phải là dòng mới không (bắt đầu bằng field bắt buộc)
+        const lineValues = trimmedLine.split(delimiter).map((v) => v.trim());
+        const isNewRow =
+          firstRequiredFieldIndex >= 0 &&
+          lineValues[firstRequiredFieldIndex] &&
+          lineValues[firstRequiredFieldIndex].length > 0;
+
+        // Nếu đây là dòng mới và đang có currentRow, xử lý currentRow trước
+        if (isNewRow && currentRow) {
+          const values = currentRow.split(delimiter).map((v) => v.trim());
+
+          // Validate số cột
+          const columnError = validateColumnCount(values, rowNumber);
+          if (columnError) {
+            return { rows: [], headers: parsedHeaders, error: columnError };
+          }
+
+          // Pad chỉ các cột optional ở cuối nếu thiếu
+          while (values.length < parsedHeaders.length) {
+            values.push("");
+          }
+
+          if (!seen.has(currentRow)) {
+            seen.add(currentRow);
+
+            const hasRequiredFields = requiredFields.some((field) => {
+              const fieldIndex = parsedHeaders.findIndex(
+                (h) => h === field || h.startsWith(field)
+              );
+              return (
+                fieldIndex >= 0 &&
+                values[fieldIndex] &&
+                values[fieldIndex].length > 0
+              );
+            });
+
+            if (hasRequiredFields) {
+              const row: ParsedRow = {};
+              parsedHeaders.forEach((header, index) => {
+                const value = values[index] || "";
+                if (arrayHeaderSet.has(header)) {
+                  row[header] = value
+                    ? value
+                        .split(",")
+                        .map((v) => v.trim())
+                        .filter(Boolean)
+                    : [];
+                } else {
+                  row[header] = value;
+                }
+              });
+              rows.push(row);
+            }
+          }
+          currentRow = "";
+          rowNumber++;
+        }
+
+        // Thêm dòng hiện tại vào currentRow
         if (currentRow) {
-          // Đang gộp dòng từ lần trước
-          currentRow += "\n" + line;
+          currentRow += "\n" + trimmedLine;
         } else {
-          currentRow = line;
+          currentRow = trimmedLine;
         }
 
         // Đếm số tab trong dòng hiện tại
         const tabCount = (currentRow.match(/\t/g) || []).length;
 
         // Nếu đủ số tab (hoặc nhiều hơn), đây là một dòng hoàn chỉnh
-        if (tabCount >= expectedColumnCount - 1) {
-          const trimmedRow = currentRow.trim();
+        // Hoặc nếu dòng tiếp theo là dòng mới, thì dòng hiện tại đã hoàn chỉnh
+        const nextLine = i + 1 < allLines.length ? allLines[i + 1].trim() : "";
+        const nextLineValues = nextLine
+          ? nextLine.split(delimiter).map((v) => v.trim())
+          : [];
+        const nextIsNewRow =
+          nextLine &&
+          firstRequiredFieldIndex >= 0 &&
+          nextLineValues[firstRequiredFieldIndex] &&
+          nextLineValues[firstRequiredFieldIndex].length > 0;
 
+        if (tabCount >= expectedColumnCount - 1 || nextIsNewRow) {
           // Bỏ qua nếu dòng trống hoặc đã thấy
-          if (!trimmedRow || seen.has(trimmedRow)) {
+          if (!currentRow || seen.has(currentRow)) {
             currentRow = "";
             continue;
           }
 
-          seen.add(trimmedRow);
+          seen.add(currentRow);
 
-          const values = currentRow
-            .split(delimiter)
-            .map((v) => v.trim())
-            .slice(0, parsedHeaders.length); // Chỉ lấy đúng số cột
+          const values = currentRow.split(delimiter).map((v) => v.trim());
 
-          // Kiểm tra xem có ít nhất một giá trị không rỗng ở các cột bắt buộc (term/kanji/title)
-          // Cho phép các cột optional (như imageUrl, type, antonyms) rỗng
-          const requiredFields =
-            type === "vocab"
-              ? ["term", "reading"]
-              : type === "kanji"
-              ? ["kanji"]
-              : ["title"];
+          // Validate số cột
+          const columnError = validateColumnCount(values, rowNumber);
+          if (columnError) {
+            return { rows: [], headers: parsedHeaders, error: columnError };
+          }
+
+          // Pad chỉ các cột optional ở cuối nếu thiếu
+          while (values.length < parsedHeaders.length) {
+            values.push("");
+          }
 
           const hasRequiredFields = requiredFields.some((field) => {
             const fieldIndex = parsedHeaders.findIndex(
@@ -168,7 +284,7 @@ export function BulkUploadPanel({
             );
           });
 
-          if (hasRequiredFields && values.length >= expectedColumnCount - 1) {
+          if (hasRequiredFields) {
             const row: ParsedRow = {};
             parsedHeaders.forEach((header, index) => {
               const value = values[index] || "";
@@ -186,19 +302,27 @@ export function BulkUploadPanel({
             rows.push(row);
           }
           currentRow = "";
+          rowNumber++;
         }
-        // Nếu chưa đủ tab, tiếp tục gộp với dòng tiếp theo
+        // Nếu chưa đủ tab và dòng tiếp theo không phải dòng mới, tiếp tục gộp
       }
 
       // Xử lý dòng cuối cùng nếu còn
-      if (currentRow.trim() && !seen.has(currentRow.trim())) {
-        const trimmedRow = currentRow.trim();
-        seen.add(trimmedRow);
+      if (currentRow && !seen.has(currentRow)) {
+        seen.add(currentRow);
 
-        const values = currentRow
-          .split(delimiter)
-          .map((v) => v.trim())
-          .slice(0, parsedHeaders.length);
+        const values = currentRow.split(delimiter).map((v) => v.trim());
+
+        // Validate số cột
+        const columnError = validateColumnCount(values, rowNumber);
+        if (columnError) {
+          return { rows: [], headers: parsedHeaders, error: columnError };
+        }
+
+        // Pad chỉ các cột optional ở cuối nếu thiếu
+        while (values.length < parsedHeaders.length) {
+          values.push("");
+        }
 
         const requiredFields =
           type === "vocab"
@@ -218,7 +342,7 @@ export function BulkUploadPanel({
           );
         });
 
-        if (hasRequiredFields && values.length >= expectedColumnCount - 1) {
+        if (hasRequiredFields) {
           const row: ParsedRow = {};
           parsedHeaders.forEach((header, index) => {
             const value = values[index] || "";
@@ -243,16 +367,25 @@ export function BulkUploadPanel({
         .map((l) => l.trim())
         .filter((l) => l.length > 0);
 
-      for (let i = 1; i < rawLines.length; i++) {
+      let commaRowNumber = 1;
+      for (let i = startLine; i < rawLines.length; i++) {
         const line = rawLines[i];
 
         if (seen.has(line)) continue;
         seen.add(line);
 
-        const values = line
-          .split(delimiter)
-          .map((v) => v.trim())
-          .filter((v, idx) => idx < parsedHeaders.length);
+        const values = line.split(delimiter).map((v) => v.trim());
+
+        // Validate số cột
+        const columnError = validateColumnCount(values, commaRowNumber);
+        if (columnError) {
+          return { rows: [], headers: parsedHeaders, error: columnError };
+        }
+
+        // Pad chỉ các cột optional ở cuối nếu thiếu
+        while (values.length < parsedHeaders.length) {
+          values.push("");
+        }
 
         if (values.length === 0 || values.every((v) => !v)) continue;
 
@@ -272,6 +405,7 @@ export function BulkUploadPanel({
         });
 
         rows.push(row);
+        commaRowNumber++;
       }
     }
 
@@ -355,27 +489,24 @@ export function BulkUploadPanel({
     });
   };
 
-  // 4. Handle paste and change events
-  const handlePaste = (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
-    const text = e.clipboardData.getData("text");
-    setPastedData(text);
-    const { rows, headers: parsedHeaders } = parseExcelData(text);
-    setHeaders(parsedHeaders);
-    setPreview(rows.slice(0, 5)); // Show first 5 rows as preview
-    setError(null);
-  };
-
+  // 4. Handle change events (onChange cũng handle paste event)
   const handleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const text = e.target.value;
     setPastedData(text);
     if (text.trim()) {
-      const { rows, headers: parsedHeaders } = parseExcelData(text);
-      setHeaders(parsedHeaders);
-      setPreview(rows.slice(0, 5));
-      setError(null);
+      const result = parseExcelData(text);
+      setHeaders(result.headers);
+      if (result.error) {
+        setError(result.error);
+        setPreview([]);
+      } else {
+        setPreview(result.rows.slice(0, 5));
+        setError(null);
+      }
     } else {
       setPreview([]);
       setHeaders([]);
+      setError(null);
     }
   };
 
@@ -385,7 +516,13 @@ export function BulkUploadPanel({
       return;
     }
 
-    const { rows: parsed } = parseExcelData(pastedData);
+    const result = parseExcelData(pastedData);
+    if (result.error) {
+      setError(result.error);
+      return;
+    }
+
+    const { rows: parsed } = result;
     if (parsed.length === 0) {
       setError("Không tìm thấy dữ liệu hợp lệ");
       return;
@@ -487,7 +624,8 @@ export function BulkUploadPanel({
             : "Ngữ pháp"}
         </h3>
         <p className="text-sm text-gray-600 mb-4">
-          Copy dữ liệu từ Excel và dán vào ô bên dưới. Các cột cần có:{" "}
+          Copy dữ liệu từ Excel và dán vào ô bên dưới (không cần dòng header).
+          Các cột theo thứ tự:{" "}
           <code className="bg-gray-100 px-2 py-1 rounded">
             {getFieldNames().join(", ")}
           </code>
@@ -504,7 +642,6 @@ export function BulkUploadPanel({
       <textarea
         value={pastedData}
         onChange={handleChange}
-        onPaste={handlePaste}
         placeholder="Dán dữ liệu từ Excel vào đây (Ctrl+V)..."
         className="w-full h-48 p-3 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#D4C4B0] resize-none text-gray-700"
       />
@@ -513,14 +650,21 @@ export function BulkUploadPanel({
         <div className="mt-4">
           <p className="text-sm font-medium text-gray-700 mb-2">
             Preview ({preview.length} dòng đầu tiên, tổng cộng sẽ upload{" "}
-            {parseExcelData(pastedData).rows.length} dòng):
+            {(() => {
+              const result = parseExcelData(pastedData);
+              return result.error ? 0 : result.rows.length;
+            })()}{" "}
+            dòng):
           </p>
           <div className="overflow-x-auto border border-gray-200 rounded-lg">
             <table className="min-w-full text-xs">
               <thead className="bg-gray-50">
                 <tr>
                   {headers.map((header) => (
-                    <th key={header} className="px-2 py-1 text-left border-b">
+                    <th
+                      key={header}
+                      className="px-2 py-1 text-left border-b text-gray-700"
+                    >
                       {header}
                     </th>
                   ))}
@@ -532,7 +676,10 @@ export function BulkUploadPanel({
                     {headers.map((header) => {
                       const value = row[header];
                       return (
-                        <td key={header} className="px-2 py-1 border-r">
+                        <td
+                          key={header}
+                          className="px-2 py-1 border-r text-gray-700"
+                        >
                           {Array.isArray(value)
                             ? value.join(", ")
                             : String(value || "")}
@@ -565,12 +712,24 @@ export function BulkUploadPanel({
         <button
           type="button"
           onClick={handleUpload}
-          disabled={isUploading || !pastedData.trim()}
+          disabled={
+            isUploading ||
+            !pastedData.trim() ||
+            (() => {
+              const result = parseExcelData(pastedData);
+              return !!result.error || result.rows.length === 0;
+            })()
+          }
           className="px-4 py-2 rounded-lg bg-[#D4C4B0] text-[#5C4A37] font-medium hover:bg-[#C9B8A3] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
         >
           {isUploading
             ? "Đang upload..."
-            : `Upload ${parseExcelData(pastedData).rows.length} dòng`}
+            : (() => {
+                const result = parseExcelData(pastedData);
+                return result.error
+                  ? "Lỗi định dạng"
+                  : `Upload ${result.rows.length} dòng`;
+              })()}
         </button>
       </div>
     </div>
