@@ -14,6 +14,10 @@ class ExampleDto {
 
   @IsString()
   @IsNotEmpty()
+  reading: string;
+
+  @IsString()
+  @IsNotEmpty()
   meaning: string;
 }
 

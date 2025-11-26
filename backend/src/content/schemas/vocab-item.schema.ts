@@ -26,8 +26,15 @@ export class VocabItem {
   @Prop({ type: [Object] })
   examples?: Array<{
     sentence: string;
+    reading: string;
     meaning: string;
   }>;
+
+  @Prop({ type: [String] })
+  synonyms?: string[];
+
+  @Prop({ type: [String] })
+  antonyms?: string[];
 
   @Prop({ default: 1 })
   version: number;

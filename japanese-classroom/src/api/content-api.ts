@@ -11,8 +11,11 @@ export interface VocabItem {
 	type?: string
 	examples?: Array<{
 		sentence: string
+		reading: string
 		meaning: string
 	}>
+	synonyms?: string[]
+	antonyms?: string[]
 	version: number
 	updatedAt?: string
 	createdAt?: string
@@ -35,8 +38,10 @@ export interface KanjiItem {
 	level: string
 	examples?: Array<{
 		sentence: string
+		reading: string
 		meaning: string
 	}>
+	similar?: string[]
 	version: number
 	updatedAt?: string
 	createdAt?: string
@@ -50,6 +55,7 @@ export interface GrammarPoint {
 	level: string
 	examples?: Array<{
 		sentence: string
+		reading: string
 		meaning: string
 	}>
 	version: number
@@ -66,8 +72,11 @@ export interface CreateVocabItemDto {
 	type?: string
 	examples?: Array<{
 		sentence: string
+		reading: string
 		meaning: string
 	}>
+	synonyms?: string[]
+	antonyms?: string[]
 }
 
 export interface CreateKanjiItemDto {
@@ -86,8 +95,10 @@ export interface CreateKanjiItemDto {
 	level: string
 	examples?: Array<{
 		sentence: string
+		reading: string
 		meaning: string
 	}>
+	similar?: string[]
 }
 
 export interface CreateGrammarPointDto {
@@ -97,6 +108,7 @@ export interface CreateGrammarPointDto {
 	level: string
 	examples?: Array<{
 		sentence: string
+		reading: string
 		meaning: string
 	}>
 }

@@ -20,6 +20,7 @@ export class GrammarPoint {
   @Prop({ type: [Object] })
   examples?: Array<{
     sentence: string;
+    reading: string;
     meaning: string;
   }>;
 

@@ -14,6 +14,10 @@ class ExampleDto {
 
   @IsString()
   @IsNotEmpty()
+  reading: string;
+
+  @IsString()
+  @IsNotEmpty()
   meaning: string;
 }
 
@@ -48,4 +52,14 @@ export class CreateVocabItemDto {
   @Type(() => ExampleDto)
   @IsOptional()
   examples?: ExampleDto[];
+
+  @IsArray()
+  @IsString({ each: true })
+  @IsOptional()
+  synonyms?: string[];
+
+  @IsArray()
+  @IsString({ each: true })
+  @IsOptional()
+  antonyms?: string[];
 }

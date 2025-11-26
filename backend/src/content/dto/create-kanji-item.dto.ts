@@ -25,6 +25,10 @@ class ExampleDto {
 
   @IsString()
   @IsNotEmpty()
+  reading: string;
+
+  @IsString()
+  @IsNotEmpty()
   meaning: string;
 }
 
@@ -81,4 +85,9 @@ export class CreateKanjiItemDto {
   @Type(() => ExampleDto)
   @IsOptional()
   examples?: ExampleDto[];
+
+  @IsArray()
+  @IsString({ each: true })
+  @IsOptional()
+  similar?: string[];
 }

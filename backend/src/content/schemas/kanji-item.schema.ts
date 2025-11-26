@@ -41,8 +41,12 @@ export class KanjiItem {
   @Prop({ type: [Object] })
   examples?: Array<{
     sentence: string;
+    reading: string;
     meaning: string;
   }>;
+
+  @Prop({ type: [String] })
+  similar?: string[];
 
   @Prop({ default: 1 })
   version: number;
