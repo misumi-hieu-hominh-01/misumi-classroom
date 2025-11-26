@@ -27,8 +27,7 @@ import { UpdateGrammarTestDto } from './dto/update-grammar-test.dto';
 import { BulkCreateVocabItemDto } from './dto/bulk-create-vocab-item.dto';
 import { BulkCreateKanjiItemDto } from './dto/bulk-create-kanji-item.dto';
 import { BulkCreateGrammarPointDto } from './dto/bulk-create-grammar-point.dto';
-import { FilterContentDto } from './dto/filter-content.dto';
-import { PaginationDto } from '../common/dto/pagination.dto';
+import { QueryContentDto } from './dto/query-content.dto';
 import { RolesGuard } from '../common/guards/roles.guard';
 import { Roles } from '../common/decorators/roles.decorator';
 
@@ -37,11 +36,8 @@ export class ContentController {
   constructor(private readonly contentService: ContentService) {}
 
   @Get('vocab')
-  async findAllVocabItems(
-    @Query() filterDto: FilterContentDto,
-    @Query() paginationDto: PaginationDto,
-  ) {
-    return this.contentService.findAllVocabItems(filterDto, paginationDto);
+  async findAllVocabItems(@Query() queryDto: QueryContentDto) {
+    return this.contentService.findAllVocabItems(queryDto);
   }
 
   @Get('vocab/:id')
@@ -84,11 +80,8 @@ export class ContentController {
   }
 
   @Get('kanji')
-  async findAllKanjiItems(
-    @Query() filterDto: FilterContentDto,
-    @Query() paginationDto: PaginationDto,
-  ) {
-    return this.contentService.findAllKanjiItems(filterDto, paginationDto);
+  async findAllKanjiItems(@Query() queryDto: QueryContentDto) {
+    return this.contentService.findAllKanjiItems(queryDto);
   }
 
   @Get('kanji/:id')
@@ -131,11 +124,8 @@ export class ContentController {
   }
 
   @Get('grammar')
-  async findAllGrammarPoints(
-    @Query() filterDto: FilterContentDto,
-    @Query() paginationDto: PaginationDto,
-  ) {
-    return this.contentService.findAllGrammarPoints(filterDto, paginationDto);
+  async findAllGrammarPoints(@Query() queryDto: QueryContentDto) {
+    return this.contentService.findAllGrammarPoints(queryDto);
   }
 
   @Get('grammar/:id')
@@ -182,11 +172,8 @@ export class ContentController {
   }
 
   @Get('vocab-tests')
-  async findAllVocabTests(
-    @Query() filterDto: FilterContentDto,
-    @Query() paginationDto: PaginationDto,
-  ) {
-    return this.contentService.findAllVocabTests(filterDto, paginationDto);
+  async findAllVocabTests(@Query() queryDto: QueryContentDto) {
+    return this.contentService.findAllVocabTests(queryDto);
   }
 
   @Get('vocab-tests/:id')
@@ -221,11 +208,8 @@ export class ContentController {
   }
 
   @Get('kanji-tests')
-  async findAllKanjiTests(
-    @Query() filterDto: FilterContentDto,
-    @Query() paginationDto: PaginationDto,
-  ) {
-    return this.contentService.findAllKanjiTests(filterDto, paginationDto);
+  async findAllKanjiTests(@Query() queryDto: QueryContentDto) {
+    return this.contentService.findAllKanjiTests(queryDto);
   }
 
   @Get('kanji-tests/:id')
@@ -260,11 +244,8 @@ export class ContentController {
   }
 
   @Get('grammar-tests')
-  async findAllGrammarTests(
-    @Query() filterDto: FilterContentDto,
-    @Query() paginationDto: PaginationDto,
-  ) {
-    return this.contentService.findAllGrammarTests(filterDto, paginationDto);
+  async findAllGrammarTests(@Query() queryDto: QueryContentDto) {
+    return this.contentService.findAllGrammarTests(queryDto);
   }
 
   @Get('grammar-tests/:id')

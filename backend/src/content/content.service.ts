@@ -28,8 +28,7 @@ import { UpdateGrammarTestDto } from './dto/update-grammar-test.dto';
 import { BulkCreateVocabItemDto } from './dto/bulk-create-vocab-item.dto';
 import { BulkCreateKanjiItemDto } from './dto/bulk-create-kanji-item.dto';
 import { BulkCreateGrammarPointDto } from './dto/bulk-create-grammar-point.dto';
-import { FilterContentDto } from './dto/filter-content.dto';
-import { PaginationDto } from '../common/dto/pagination.dto';
+import { QueryContentDto } from './dto/query-content.dto';
 
 @Injectable()
 export class ContentService {
@@ -56,11 +55,9 @@ export class ContentService {
   }
 
   async findAllVocabItems(
-    filterDto: FilterContentDto,
-    paginationDto: PaginationDto,
+    queryDto: QueryContentDto,
   ): Promise<{ items: VocabItemDocument[]; total: number }> {
-    const { level, search } = filterDto;
-    const { page = 1, limit = 10 } = paginationDto;
+    const { level, search, page = 1, limit = 10 } = queryDto;
     const skip = (page - 1) * limit;
     const query: FilterQuery<VocabItemDocument> = {};
     if (level) {
@@ -127,11 +124,9 @@ export class ContentService {
   }
 
   async findAllKanjiItems(
-    filterDto: FilterContentDto,
-    paginationDto: PaginationDto,
+    queryDto: QueryContentDto,
   ): Promise<{ items: KanjiItemDocument[]; total: number }> {
-    const { level, search } = filterDto;
-    const { page = 1, limit = 10 } = paginationDto;
+    const { level, search, page = 1, limit = 10 } = queryDto;
     const skip = (page - 1) * limit;
     const query: FilterQuery<KanjiItemDocument> = {};
     if (level) {
@@ -197,11 +192,9 @@ export class ContentService {
   }
 
   async findAllGrammarPoints(
-    filterDto: FilterContentDto,
-    paginationDto: PaginationDto,
+    queryDto: QueryContentDto,
   ): Promise<{ items: GrammarPointDocument[]; total: number }> {
-    const { level, search } = filterDto;
-    const { page = 1, limit = 10 } = paginationDto;
+    const { level, search, page = 1, limit = 10 } = queryDto;
     const skip = (page - 1) * limit;
     const query: FilterQuery<GrammarPointDocument> = {};
     if (level) {
@@ -268,11 +261,9 @@ export class ContentService {
   }
 
   async findAllVocabTests(
-    filterDto: FilterContentDto,
-    paginationDto: PaginationDto,
+    queryDto: QueryContentDto,
   ): Promise<{ items: VocabTestDocument[]; total: number }> {
-    const { level } = filterDto;
-    const { page = 1, limit = 10 } = paginationDto;
+    const { level, page = 1, limit = 10 } = queryDto;
     const skip = (page - 1) * limit;
     const query: FilterQuery<VocabTestDocument> = {};
     if (level) {
@@ -323,11 +314,9 @@ export class ContentService {
   }
 
   async findAllKanjiTests(
-    filterDto: FilterContentDto,
-    paginationDto: PaginationDto,
+    queryDto: QueryContentDto,
   ): Promise<{ items: KanjiTestDocument[]; total: number }> {
-    const { level } = filterDto;
-    const { page = 1, limit = 10 } = paginationDto;
+    const { level, page = 1, limit = 10 } = queryDto;
     const skip = (page - 1) * limit;
     const query: FilterQuery<KanjiTestDocument> = {};
     if (level) {
@@ -378,11 +367,9 @@ export class ContentService {
   }
 
   async findAllGrammarTests(
-    filterDto: FilterContentDto,
-    paginationDto: PaginationDto,
+    queryDto: QueryContentDto,
   ): Promise<{ items: GrammarTestDocument[]; total: number }> {
-    const { level } = filterDto;
-    const { page = 1, limit = 10 } = paginationDto;
+    const { level, page = 1, limit = 10 } = queryDto;
     const skip = (page - 1) * limit;
     const query: FilterQuery<GrammarTestDocument> = {};
     if (level) {
