@@ -49,7 +49,7 @@ export function BulkUploadPanel({
         { name: "onyomi[]", isArray: true },
         { name: "kunyomi[]", isArray: true },
         { name: "meaningVi[]", isArray: true },
-        { name: "compDetail" }, // "component|meaning, component|meaning..."
+        { name: "compDetail" }, // JSON string: [{"h": "THỦ", "w": "扌"}, {"h": "THỊ", "w": "是"}]
         { name: "tips[]", isArray: true },
         { name: "strokes" },
         { name: "level" },
@@ -468,27 +468,44 @@ export function BulkUploadPanel({
   const parseCompDetail = (
     value: string | string[] | undefined
   ):
-    | {
-        component: string;
-        meaning: string;
-      }[]
+    | Array<{
+        h: string;
+        w: string;
+      }>
     | undefined => {
     if (value == null) return undefined;
 
-    const rawList = Array.isArray(value)
-      ? value
-      : value.split(",").map((v) => v.trim());
+    const rawValue = Array.isArray(value) ? value[0] : value;
+    if (!rawValue || typeof rawValue !== "string") return undefined;
 
-    const cleaned = rawList.filter(Boolean);
-    if (!cleaned.length) return undefined;
+    const trimmed = rawValue.trim();
+    if (!trimmed) return undefined;
 
-    return cleaned.map((cd) => {
-      const parts = cd.split("|").map((p) => p.trim());
-      return {
-        component: parts[0] || "",
-        meaning: parts[1] || "",
-      };
-    });
+    try {
+      const parsed = JSON.parse(trimmed);
+      if (!Array.isArray(parsed)) {
+        return undefined;
+      }
+
+      // Validate structure: should be Array<{h, w}>
+      const result = parsed
+        .filter(
+          (item): item is { h: string; w: string } =>
+            typeof item === "object" &&
+            item !== null &&
+            typeof item.h === "string" &&
+            typeof item.w === "string"
+        )
+        .map((item) => ({
+          h: item.h,
+          w: item.w,
+        }));
+
+      return result.length > 0 ? result : undefined;
+    } catch {
+      // If JSON parse fails, return undefined
+      return undefined;
+    }
   };
 
   const parseExampleKunOn = (
@@ -707,16 +724,19 @@ export function BulkUploadPanel({
           Lưu ý: Các trường có [] là mảng, dùng dấu phẩy để phân cách. Ví dụ:
           meaningVi[] = &quot;nghĩa 1, nghĩa 2&quot;. Examples dùng format:
           &quot;câu ví dụ|reading|nghĩa ví dụ&quot;, nhiều ví dụ phân cách bằng
-          dấu phẩy. Kanji compDetail dùng format: &quot;bộ phận|nghĩa, bộ
-          phận|nghĩa&quot;.
+          dấu phẩy.
         </p>
         {type === "kanji" && (
           <p className="text-xs text-amber-600 bg-amber-50 p-2 rounded mb-4 border border-amber-200">
             <strong>⚠️ Lưu ý đặc biệt:</strong> Trường{" "}
-            <strong>example_kun</strong> và <strong>example_on</strong> phải
-            nhập dưới dạng JSON string. Ví dụ:{" "}
+            <strong>compDetail</strong>, <strong>example_kun</strong> và{" "}
+            <strong>example_on</strong> phải nhập dưới dạng JSON string. Ví dụ:{" "}
             <code className="bg-amber-100 px-1 rounded">
-              {`{"さ.げる": [{"m": "Cầm trong tay", "w": "提げる", "p": "さげる"}]}`}
+              {`compDetail: [{"h": "THỦ", "w": "扌"}, {"h": "THỊ", "w": "是"}]`}
+            </code>
+            <br />
+            <code className="bg-amber-100 px-1 rounded">
+              {`example_kun: {"さ.げる": [{"m": "Cầm trong tay", "w": "提げる", "p": "さげる"}]}`}
             </code>
           </p>
         )}

@@ -12,11 +12,11 @@ import { Type } from 'class-transformer';
 class ComponentDetailDto {
   @IsString()
   @IsNotEmpty()
-  component: string;
+  h: string;
 
   @IsString()
   @IsNotEmpty()
-  meaning: string;
+  w: string;
 }
 
 class ExampleItemDto {

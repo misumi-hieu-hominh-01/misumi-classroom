@@ -29,8 +29,8 @@ export interface KanjiItem {
   kunyomi?: string[];
   meaningVi: string[];
   compDetail?: Array<{
-    component: string;
-    meaning: string;
+    h: string;
+    w: string;
   }>;
   tips?: string[];
   strokes?: number;
@@ -95,8 +95,8 @@ export interface CreateKanjiItemDto {
   kunyomi?: string[];
   meaningVi: string[];
   compDetail?: Array<{
-    component: string;
-    meaning: string;
+    h: string;
+    w: string;
   }>;
   tips?: string[];
   strokes?: number;

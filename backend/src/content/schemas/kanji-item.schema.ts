@@ -22,8 +22,8 @@ export class KanjiItem {
 
   @Prop({ type: [Object] })
   compDetail?: Array<{
-    component: string;
-    meaning: string;
+    h: string;
+    w: string;
   }>;
 
   @Prop({ type: [String] })
