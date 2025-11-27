@@ -34,14 +34,23 @@ export interface KanjiItem {
   }>;
   tips?: string[];
   strokes?: number;
-  imageUrl?: string;
   level: string;
-  examples?: Array<{
-    sentence: string;
-    reading: string;
-    meaning: string;
-  }>;
-  similar?: string[];
+  example_kun?: Record<
+    string,
+    Array<{
+      m: string;
+      w: string;
+      p: string;
+    }>
+  >;
+  example_on?: Record<
+    string,
+    Array<{
+      m: string;
+      w: string;
+      p: string;
+    }>
+  >;
   version: number;
   updatedAt?: string;
   createdAt?: string;
@@ -91,14 +100,23 @@ export interface CreateKanjiItemDto {
   }>;
   tips?: string[];
   strokes?: number;
-  imageUrl?: string;
   level: string;
-  examples?: Array<{
-    sentence: string;
-    reading: string;
-    meaning: string;
-  }>;
-  similar?: string[];
+  example_kun?: Record<
+    string,
+    Array<{
+      m: string;
+      w: string;
+      p: string;
+    }>
+  >;
+  example_on?: Record<
+    string,
+    Array<{
+      m: string;
+      w: string;
+      p: string;
+    }>
+  >;
 }
 
 export interface CreateGrammarPointDto {

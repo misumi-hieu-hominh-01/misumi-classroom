@@ -52,10 +52,9 @@ export function BulkUploadPanel({
         { name: "compDetail" }, // "component|meaning, component|meaning..."
         { name: "tips[]", isArray: true },
         { name: "strokes" },
-        { name: "imageUrl" },
         { name: "level" },
-        { name: "examples" },
-        { name: "similar[]", isArray: true },
+        { name: "example_kun" }, // JSON string: {"さ.げる": [{"m": "...", "w": "...", "p": "..."}]}
+        { name: "example_on" }, // JSON string: {"テイ": [{"m": "...", "w": "...", "p": "..."}]}
       ];
     } else {
       // grammar
@@ -100,13 +99,16 @@ export function BulkUploadPanel({
 
     if (parsedHeaders.length === 0) return { rows: [], headers: [] };
 
-    // Xác định các cột có thể rỗng (chỉ synonyms và antonyms cho vocab)
+    // Xác định các cột có thể rỗng
     const optionalColumns: string[] = [];
     if (type === "vocab") {
       const synonymsIndex = parsedHeaders.indexOf("synonyms[]");
       const antonymsIndex = parsedHeaders.indexOf("antonyms[]");
       if (synonymsIndex >= 0) optionalColumns.push("synonyms[]");
       if (antonymsIndex >= 0) optionalColumns.push("antonyms[]");
+    } else if (type === "kanji") {
+      const compDetailIndex = parsedHeaders.indexOf("compDetail");
+      if (compDetailIndex >= 0) optionalColumns.push("compDetail");
     }
     // Số cột tối thiểu = tổng số cột - số cột optional
     const minColumnCount = expectedColumnCount - optionalColumns.length;
@@ -489,6 +491,76 @@ export function BulkUploadPanel({
     });
   };
 
+  const parseExampleKunOn = (
+    value: string | string[] | undefined
+  ):
+    | Record<
+        string,
+        Array<{
+          m: string;
+          w: string;
+          p: string;
+        }>
+      >
+    | undefined => {
+    if (value == null) return undefined;
+
+    const rawValue = Array.isArray(value) ? value[0] : value;
+    if (!rawValue || typeof rawValue !== "string") return undefined;
+
+    const trimmed = rawValue.trim();
+    if (!trimmed) return undefined;
+
+    try {
+      const parsed = JSON.parse(trimmed);
+      if (
+        typeof parsed !== "object" ||
+        parsed === null ||
+        Array.isArray(parsed)
+      ) {
+        return undefined;
+      }
+
+      // Validate structure: should be Record<string, Array<{m, w, p}>>
+      const result: Record<
+        string,
+        Array<{
+          m: string;
+          w: string;
+          p: string;
+        }>
+      > = {};
+
+      for (const [key, value] of Object.entries(parsed)) {
+        if (Array.isArray(value)) {
+          const items = value
+            .filter(
+              (item): item is { m: string; w: string; p: string } =>
+                typeof item === "object" &&
+                item !== null &&
+                typeof item.m === "string" &&
+                typeof item.w === "string" &&
+                typeof item.p === "string"
+            )
+            .map((item) => ({
+              m: item.m,
+              w: item.w,
+              p: item.p,
+            }));
+
+          if (items.length > 0) {
+            result[key] = items;
+          }
+        }
+      }
+
+      return Object.keys(result).length > 0 ? result : undefined;
+    } catch {
+      // If JSON parse fails, return undefined
+      return undefined;
+    }
+  };
+
   // 4. Handle change events (onChange cũng handle paste event)
   const handleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const text = e.target.value;
@@ -556,13 +628,13 @@ export function BulkUploadPanel({
         } else if (type === "kanji") {
           // Kanji schema:
           // kanji, hanmean[], onyomi[], kunyomi[], meaningVi[],
-          // compDetail, tips[], strokes, imageUrl, level, examples, similar[]
+          // compDetail, tips[], strokes, level,
+          // example_kun, example_on
           const hanmean = getArrayField(row, ["hanmean[]", "hanmean"]);
           const onyomi = getArrayField(row, ["onyomi[]", "onyomi"]);
           const kunyomi = getArrayField(row, ["kunyomi[]", "kunyomi"]);
           const meaningVi = getArrayField(row, ["meaningVi[]", "meaningVi"]);
           const tips = getArrayField(row, ["tips[]", "tips"]);
-          const similar = getArrayField(row, ["similar[]", "similar"]);
 
           const strokesRaw = row.strokes as string | undefined;
           const strokes = strokesRaw ? parseInt(strokesRaw, 10) : undefined;
@@ -578,12 +650,13 @@ export function BulkUploadPanel({
             ),
             tips,
             strokes: Number.isNaN(strokes) ? undefined : strokes,
-            imageUrl: (row.imageUrl as string) || undefined,
             level: row.level as string,
-            examples: parseExamples(
-              row.examples as string | string[] | undefined
+            example_kun: parseExampleKunOn(
+              row.example_kun as string | string[] | undefined
             ),
-            similar,
+            example_on: parseExampleKunOn(
+              row.example_on as string | string[] | undefined
+            ),
           };
         } else {
           // Grammar schema:
@@ -637,6 +710,16 @@ export function BulkUploadPanel({
           dấu phẩy. Kanji compDetail dùng format: &quot;bộ phận|nghĩa, bộ
           phận|nghĩa&quot;.
         </p>
+        {type === "kanji" && (
+          <p className="text-xs text-amber-600 bg-amber-50 p-2 rounded mb-4 border border-amber-200">
+            <strong>⚠️ Lưu ý đặc biệt:</strong> Trường{" "}
+            <strong>example_kun</strong> và <strong>example_on</strong> phải
+            nhập dưới dạng JSON string. Ví dụ:{" "}
+            <code className="bg-amber-100 px-1 rounded">
+              {`{"さ.げる": [{"m": "Cầm trong tay", "w": "提げる", "p": "さげる"}]}`}
+            </code>
+          </p>
+        )}
       </div>
 
       <textarea

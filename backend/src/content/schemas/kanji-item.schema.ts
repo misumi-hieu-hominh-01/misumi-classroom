@@ -32,21 +32,28 @@ export class KanjiItem {
   @Prop()
   strokes?: number;
 
-  @Prop()
-  imageUrl?: string;
-
   @Prop({ required: true })
   level: string;
 
-  @Prop({ type: [Object] })
-  examples?: Array<{
-    sentence: string;
-    reading: string;
-    meaning: string;
-  }>;
+  @Prop({ type: Object })
+  example_kun?: Record<
+    string,
+    Array<{
+      m: string;
+      w: string;
+      p: string;
+    }>
+  >;
 
-  @Prop({ type: [String] })
-  similar?: string[];
+  @Prop({ type: Object })
+  example_on?: Record<
+    string,
+    Array<{
+      m: string;
+      w: string;
+      p: string;
+    }>
+  >;
 
   @Prop({ default: 1 })
   version: number;

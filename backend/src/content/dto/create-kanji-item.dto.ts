@@ -5,6 +5,7 @@ import {
   IsNotEmpty,
   IsNumber,
   ValidateNested,
+  IsObject,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 
@@ -18,18 +19,18 @@ class ComponentDetailDto {
   meaning: string;
 }
 
-class ExampleDto {
+class ExampleItemDto {
   @IsString()
   @IsNotEmpty()
-  sentence: string;
+  m: string;
 
   @IsString()
   @IsNotEmpty()
-  reading: string;
+  w: string;
 
   @IsString()
   @IsNotEmpty()
-  meaning: string;
+  p: string;
 }
 
 export class CreateKanjiItemDto {
@@ -73,21 +74,14 @@ export class CreateKanjiItemDto {
   strokes?: number;
 
   @IsString()
-  @IsOptional()
-  imageUrl?: string;
-
-  @IsString()
   @IsNotEmpty()
   level: string;
 
-  @IsArray()
-  @ValidateNested({ each: true })
-  @Type(() => ExampleDto)
+  @IsObject()
   @IsOptional()
-  examples?: ExampleDto[];
+  example_kun?: Record<string, ExampleItemDto[]>;
 
-  @IsArray()
-  @IsString({ each: true })
+  @IsObject()
   @IsOptional()
-  similar?: string[];
+  example_on?: Record<string, ExampleItemDto[]>;
 }

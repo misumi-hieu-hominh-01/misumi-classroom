@@ -23,4 +23,3 @@ export class QueryContentDto {
   @Max(100)
   limit?: number = 10;
 }
-
