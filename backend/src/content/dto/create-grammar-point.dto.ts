@@ -10,15 +10,15 @@ import { Type } from 'class-transformer';
 class ExampleDto {
   @IsString()
   @IsNotEmpty()
-  sentence: string;
+  content: string;
 
   @IsString()
   @IsNotEmpty()
-  reading: string;
+  transcription: string;
 
   @IsString()
   @IsNotEmpty()
-  meaning: string;
+  mean: string;
 }
 
 export class CreateGrammarPointDto {
@@ -37,6 +37,10 @@ export class CreateGrammarPointDto {
   @IsString()
   @IsNotEmpty()
   level: string;
+
+  @IsString()
+  @IsOptional()
+  type?: string;
 
   @IsArray()
   @ValidateNested({ each: true })

@@ -23,7 +23,7 @@
 
 - `content_vocab_items` — từ vựng: `{ term, reading, meaningVi[], level, imageUrl, type, examples[{sentence, reading, meaning}], synonyms[], antonyms[], version, updatedAt }`
 - `content_kanji_items` — kanji: `{ kanji, hanmean[], onyomi[], kunyomi[], meaningVi[], compDetail[{h, w}], tips[], strokes, level, example_kun{}, example_on{}, version, updatedAt }`
-- `content_grammar_points` — ngữ pháp: `{ title, pattern, explainVi, level, examples[{sentence, reading, meaning}], version, updatedAt }`
+- `content_grammar_points` — ngữ pháp: `{ title, pattern, explainVi, level, type?, examples[{content, transcription, mean}], version, updatedAt }`
 - `content_vocab_tests` — đề test từ vựng (catalog): `{ title, level, version, mode, items[], published, updatedAt }`
 - `content_kanji_tests` — đề test kanji (catalog)
 - `content_grammar_tests` — đề test ngữ pháp (catalog)

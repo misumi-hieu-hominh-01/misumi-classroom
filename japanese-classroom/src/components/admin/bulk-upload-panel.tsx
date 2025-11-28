@@ -63,6 +63,7 @@ export function BulkUploadPanel({
         { name: "pattern" },
         { name: "explainVi" },
         { name: "level" },
+        { name: "type" },
         { name: "examples" },
       ];
     }
@@ -465,6 +466,51 @@ export function BulkUploadPanel({
     });
   };
 
+  const parseGrammarExamples = (
+    value: string | string[] | undefined
+  ):
+    | {
+        content: string;
+        transcription: string;
+        mean: string;
+      }[]
+    | undefined => {
+    if (value == null) return undefined;
+
+    // Try to parse as JSON first
+    if (typeof value === "string") {
+      try {
+        const parsed = JSON.parse(value);
+        if (Array.isArray(parsed)) {
+          return parsed.map((ex) => ({
+            content: ex.content || "",
+            transcription: ex.transcription || "",
+            mean: ex.mean || "",
+          }));
+        }
+      } catch {
+        // Not JSON, fall through to pipe-separated format
+      }
+    }
+
+    // Fall back to pipe-separated format for backward compatibility
+    const rawList = Array.isArray(value)
+      ? value
+      : value.split(",").map((v) => v.trim());
+
+    const cleaned = rawList.filter(Boolean);
+    if (!cleaned.length) return undefined;
+
+    return cleaned.map((ex) => {
+      const parts = ex.split("|").map((p) => p.trim());
+      return {
+        content: parts[0] || "",
+        transcription: parts[1] || "",
+        mean: parts[2] || "",
+      };
+    });
+  };
+
   const parseCompDetail = (
     value: string | string[] | undefined
   ):
@@ -677,13 +723,14 @@ export function BulkUploadPanel({
           };
         } else {
           // Grammar schema:
-          // title, pattern, explainVi, level, examples
+          // title, pattern, explainVi, level, type, examples
           return {
             title: row.title as string,
             pattern: row.pattern as string,
             explainVi: row.explainVi as string,
             level: row.level as string,
-            examples: parseExamples(
+            type: (row.type as string) || undefined,
+            examples: parseGrammarExamples(
               row.examples as string | string[] | undefined
             ),
           };

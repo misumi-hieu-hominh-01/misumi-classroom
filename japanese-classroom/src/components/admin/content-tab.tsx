@@ -74,6 +74,7 @@ export function ContentTab({ type }: ContentTabProps) {
           grammar.title?.toLowerCase().includes(searchLower) ||
           grammar.pattern?.toLowerCase().includes(searchLower) ||
           grammar.explainVi?.toLowerCase().includes(searchLower) ||
+          grammar.type?.toLowerCase().includes(searchLower) ||
           false
         );
       }
@@ -155,6 +156,7 @@ export function ContentTab({ type }: ContentTabProps) {
         { key: "pattern", label: "Mẫu câu" },
         { key: "explainVi", label: "Giải thích" },
         { key: "level", label: "Cấp độ" },
+        { key: "type", label: "Loại" },
       ];
     }
   };

@@ -17,11 +17,14 @@ export class GrammarPoint {
   @Prop({ required: true })
   level: string;
 
+  @Prop({ trim: true })
+  type?: string;
+
   @Prop({ type: [Object] })
   examples?: Array<{
-    sentence: string;
-    reading: string;
-    meaning: string;
+    content: string;
+    transcription: string;
+    mean: string;
   }>;
 
   @Prop({ default: 1 })

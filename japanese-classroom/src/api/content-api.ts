@@ -62,10 +62,11 @@ export interface GrammarPoint {
   pattern: string;
   explainVi: string;
   level: string;
+  type?: string;
   examples?: Array<{
-    sentence: string;
-    reading: string;
-    meaning: string;
+    content: string;
+    transcription: string;
+    mean: string;
   }>;
   version: number;
   updatedAt?: string;
@@ -124,10 +125,11 @@ export interface CreateGrammarPointDto {
   pattern: string;
   explainVi: string;
   level: string;
+  type?: string;
   examples?: Array<{
-    sentence: string;
-    reading: string;
-    meaning: string;
+    content: string;
+    transcription: string;
+    mean: string;
   }>;
 }
 
