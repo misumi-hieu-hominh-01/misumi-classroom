@@ -8,6 +8,8 @@ import { UsersModule } from './users/users.module';
 import { AuthModule } from './auth/auth.module';
 import { ContentModule } from './content/content.module';
 import { AttemptsModule } from './attempts/attempts.module';
+import { AttendanceModule } from './attendance/attendance.module';
+import { StudyModule } from './study/study.module';
 import databaseConfig from './config/database.config';
 import jwtConfig from './config/jwt.config';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
@@ -32,6 +34,8 @@ import { TransformInterceptor } from './common/interceptors/transform.intercepto
     AuthModule,
     ContentModule,
     AttemptsModule,
+    AttendanceModule,
+    StudyModule,
   ],
   controllers: [AppController],
   providers: [

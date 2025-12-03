@@ -21,6 +21,7 @@ import {
   useNotifications,
   InteractionButton,
   ChatDialog,
+  CheckInModal,
 } from "../ui";
 
 interface ClassroomModelProps {
@@ -99,6 +100,7 @@ export default function ClassroomScene({
   // Chat dialog states
   const [showTeacherDialog, setShowTeacherDialog] = useState(false);
   const [isInConversation, setIsInConversation] = useState(false);
+  const [showCheckInModal, setShowCheckInModal] = useState(false);
 
   // Cycle camera modes
   const cycleCameraMode = useCallback(() => {
@@ -213,6 +215,9 @@ export default function ClassroomScene({
       setStickmanPosition(originalPosition);
       setOriginalPosition(null);
     }
+
+    // Show check-in modal after conversation ends
+    setShowCheckInModal(true);
   }, [originalCameraMode, originalPosition]);
 
   // Handle seat interaction
@@ -636,6 +641,12 @@ export default function ClassroomScene({
         messages={teacherMessages}
         onClose={handleCloseTeacherDialog}
         position={{ x: 50, y: 25 }}
+      />
+
+      {/* Check-in Modal */}
+      <CheckInModal
+        visible={showCheckInModal}
+        onClose={() => setShowCheckInModal(false)}
       />
 
       {/* Sitting mode indicator */}
