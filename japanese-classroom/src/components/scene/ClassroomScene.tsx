@@ -8,21 +8,16 @@ import StickMan, { Teacher } from "../character";
 import { ThirdPersonCamera, FirstPersonCamera } from "../camera";
 import DynamicLighting from "./DynamicLighting";
 import TimeDisplay from "../ui";
-import { renderCollisionBoxes } from "./CollisionSystem";
-import CollisionHelper, { PreviewCollisionBox } from "./CollisionHelper";
-import {
-  findNearbyCheckpoint,
-  renderCheckpointBoxes,
-  Checkpoint,
-} from "./CheckpointSystem";
-import CheckpointHelper, { PreviewCheckpointBox } from "./CheckpointHelper";
+import { findNearbyCheckpoint, Checkpoint } from "./CheckpointSystem";
 import {
   NotificationSystem,
   useNotifications,
   InteractionButton,
   ChatDialog,
   CheckInModal,
+  ConfirmDialog,
 } from "../ui";
+import { useRouter } from "next/navigation";
 
 interface ClassroomModelProps {
   position?: [number, number, number];
@@ -45,6 +40,7 @@ interface ClassroomSceneProps {
 export default function ClassroomScene({
   onExitClassroom,
 }: ClassroomSceneProps) {
+  const router = useRouter();
   const [stickmanPosition, setStickmanPosition] = useState(
     new Vector3(-3.0, -1.2, 1.2)
   );
@@ -53,32 +49,6 @@ export default function ClassroomScene({
   const [cameraMode, setCameraMode] = useState<
     "first-person" | "third-person" | "free"
   >("third-person");
-
-  // Debug UI control
-  const [showDebugInfo, setShowDebugInfo] = useState(true);
-
-  // Debug collision boxes
-  const [showCollisionBoxes, setShowCollisionBoxes] = useState(false);
-
-  // Preview collision box state
-  const [showPreviewBox, setShowPreviewBox] = useState(true);
-  const [previewBoxSize, setPreviewBoxSize] = useState({
-    width: 2,
-    height: 2,
-    depth: 2,
-  });
-
-  // Checkpoint system states
-  const [showCheckpointBoxes, setShowCheckpointBoxes] = useState(false);
-  const [showCheckpointPreview, setShowCheckpointPreview] = useState(false);
-  const [checkpointPreviewSize, setCheckpointPreviewSize] = useState({
-    width: 1,
-    height: 2,
-    depth: 1,
-  });
-  const [checkpointType, setCheckpointType] = useState<
-    "seat" | "desk" | "board" | "door" | "custom"
-  >("seat");
 
   // Notification system
   const { notifications, removeNotification } = useNotifications();
@@ -102,6 +72,11 @@ export default function ClassroomScene({
   const [isInConversation, setIsInConversation] = useState(false);
   const [showCheckInModal, setShowCheckInModal] = useState(false);
 
+  // Exit confirmation dialog
+  const [showExitConfirm, setShowExitConfirm] = useState(false);
+  const [hasShownExitConfirm, setHasShownExitConfirm] = useState(false);
+  const [stickmanKey, setStickmanKey] = useState(0); // Key to force re-render StickMan
+
   // Cycle camera modes
   const cycleCameraMode = useCallback(() => {
     setCameraMode((mode) => {
@@ -124,15 +99,22 @@ export default function ClassroomScene({
   // Check for nearby interactable seats and teacher, and exit condition
   useEffect(() => {
     if (isSitting) return; // Không check khi đang ngồi
+    if (showExitConfirm || isInConversation) return; // Không check khi đang show confirm hoặc đang conversation
 
     // Check for exit condition - if player moves far from classroom center
     const classroomCenter = new Vector3(-15, -1.2, -12);
     const distanceFromCenter = stickmanPosition.distanceTo(classroomCenter);
 
-    // If player is too far from classroom center, trigger exit
-    if (distanceFromCenter > 25 && onExitClassroom) {
-      onExitClassroom();
+    // If player is too far from classroom center, show confirmation dialog
+    if (distanceFromCenter > 25 && !hasShownExitConfirm) {
+      setShowExitConfirm(true);
+      setHasShownExitConfirm(true);
       return;
+    }
+
+    // Reset flag if player comes back close to center
+    if (distanceFromCenter <= 25 && hasShownExitConfirm) {
+      setHasShownExitConfirm(false);
     }
 
     // Check for nearby interactable (always detect regardless of cooldown)
@@ -146,12 +128,45 @@ export default function ClassroomScene({
     } else {
       setNearbyInteractable(null);
     }
-  }, [stickmanPosition, isSitting, onExitClassroom]);
+  }, [
+    stickmanPosition,
+    isSitting,
+    showExitConfirm,
+    isInConversation,
+    hasShownExitConfirm,
+  ]);
 
-  // Add new checkpoint handler
-  const handleAddCheckpoint = () => {
-    // In a real app, you would save this to a database or state management
-  };
+  // Handle exit confirmation
+  const handleConfirmExit = useCallback(() => {
+    setShowExitConfirm(false);
+    if (onExitClassroom) {
+      onExitClassroom();
+    } else {
+      router.push("/");
+    }
+  }, [onExitClassroom, router]);
+
+  const handleCancelExit = useCallback(() => {
+    setShowExitConfirm(false);
+
+    // Reset player position to a safe location near classroom center
+    const safePosition = new Vector3(-3.0, -1.2, 1.2); // Initial spawn position
+    setStickmanPosition(safePosition);
+    setStickmanRotation(Math.PI); // Reset rotation to initial value
+
+    // Force re-render StickMan component by changing key
+    setStickmanKey((prev) => prev + 1);
+
+    // Reset camera mode if in first-person
+    if (cameraMode === "first-person") {
+      setCameraMode("third-person");
+    }
+
+    // Delay resetting flag to ensure position is updated first
+    setTimeout(() => {
+      setHasShownExitConfirm(false);
+    }, 500);
+  }, [cameraMode]);
 
   // Teacher messages
   const teacherMessages = [
@@ -338,35 +353,17 @@ export default function ClassroomScene({
           {/* Classroom Model - Phóng to 3x */}
           <ClassroomModel scale={3} />
 
-          {/* Debug: Collision Boxes */}
-          {showCollisionBoxes && renderCollisionBoxes()}
-
-          {/* Debug: Checkpoint Boxes */}
-          {showCheckpointBoxes && renderCheckpointBoxes()}
-
-          {/* Preview Collision Box */}
-          {showPreviewBox && (
-            <PreviewCollisionBox
-              position={stickmanPosition}
-              size={previewBoxSize}
-            />
-          )}
-
-          {/* Preview Checkpoint Box */}
-          {showCheckpointPreview && (
-            <PreviewCheckpointBox
-              position={stickmanPosition}
-              size={checkpointPreviewSize}
-              type={checkpointType}
-            />
-          )}
-
           <StickMan
-            position={[-3.0, -1.2, 1.2]}
+            key={stickmanKey}
+            position={[
+              stickmanPosition.x,
+              stickmanPosition.y,
+              stickmanPosition.z,
+            ]}
             scale={0.9}
             visible={cameraMode !== "first-person"}
-            disabled={isSitting || isInConversation}
-            initialRotation={Math.PI}
+            disabled={isSitting || isInConversation || showExitConfirm}
+            initialRotation={stickmanRotation}
             moveSpeed={8}
             onPositionChange={handleStickmanPositionChange}
           />
@@ -421,20 +418,9 @@ export default function ClassroomScene({
         </Suspense>
       </Canvas>
 
-      {/* Time Display */}
-      <TimeDisplay />
-
-      {/* Camera mode indicator */}
-      <div className="absolute top-4 right-4 z-10 bg-white/90 backdrop-blur-sm rounded-lg p-2 shadow-lg">
-        <p className="text-sm font-medium text-gray-800">
-          📹{" "}
-          {cameraMode === "third-person"
-            ? "Góc nhìn thứ 3"
-            : cameraMode === "first-person"
-            ? "Góc nhìn thứ 1"
-            : "Camera tự do"}
-        </p>
-        <p className="text-xs text-gray-500 text-center">Phím C</p>
+      {/* Time Display - Top Left */}
+      <div className="absolute top-4 left-4 z-10">
+        <TimeDisplay />
       </div>
 
       {/* Notification System */}
@@ -442,179 +428,6 @@ export default function ClassroomScene({
         notifications={notifications}
         onRemoveNotification={removeNotification}
       />
-
-      {/* Debug Toggle Button */}
-      <button
-        onClick={() => setShowDebugInfo(!showDebugInfo)}
-        className="absolute top-4 left-4 z-20 bg-gray-800 hover:bg-gray-700 text-white px-3 py-2 rounded-lg shadow-lg transition-colors"
-        title={showDebugInfo ? "Ẩn Debug Info" : "Hiện Debug Info"}
-      >
-        {showDebugInfo ? "🔍 Ẩn Debug" : "🔍 Hiện Debug"}
-      </button>
-
-      {/* Controls UI */}
-      {showDebugInfo && (
-        <div className="absolute top-16 left-4 z-10 bg-white/90 backdrop-blur-sm rounded-lg p-4 shadow-lg max-w-sm">
-          <h2 className="text-lg font-bold text-gray-800 mb-3">
-            🎮 Điều khiển
-          </h2>
-
-          <div className="space-y-2 text-sm text-gray-700">
-            <div className="grid grid-cols-2 gap-2">
-              <div>
-                <strong>Di chuyển:</strong>
-                <div className="text-xs mt-1">
-                  • W/↑: Đi thẳng
-                  <br />
-                  • S/↓: Đi lùi
-                  <br />
-                  • A/←: Quay trái
-                  <br />• D/→: Quay phải
-                </div>
-              </div>
-              <div>
-                <strong>Điều khiển:</strong>
-                <div className="text-xs mt-1 mb-2">
-                  • <kbd className="bg-gray-200 px-1 rounded">C</kbd>: Đổi
-                  camera
-                  <br />• <kbd className="bg-gray-200 px-1 rounded">F</kbd>:
-                  Tương tác
-                  <br />• <kbd className="bg-gray-200 px-1 rounded">ESC</kbd>:
-                  Thoát ngồi
-                  <br />
-                  {cameraMode === "first-person" &&
-                    "• Chuột trái + kéo: Nhìn quanh"}
-                  {cameraMode === "third-person" &&
-                    "• Chuột phải + kéo: Xoay cam"}
-                  {cameraMode === "free" && "• Chuột: Xoay, zoom"}
-                </div>
-                <button
-                  onClick={cycleCameraMode}
-                  className="block w-full px-2 py-1 bg-blue-500 text-white text-xs rounded hover:bg-blue-600 transition-colors"
-                  title="Hoặc nhấn phím C"
-                >
-                  📹 {cameraMode === "first-person" && "Góc nhìn thứ 1"}
-                  {cameraMode === "third-person" && "Góc nhìn thứ 3"}
-                  {cameraMode === "free" && "Camera tự do"}
-                </button>
-                <div className="text-xs mt-1 text-gray-500">
-                  Tank-style controls
-                </div>
-              </div>
-            </div>
-
-            {/* Debug Section */}
-            <div className="border-t pt-2 mt-3">
-              <strong>Debug:</strong>
-              <div className="grid grid-cols-1 gap-1 mt-1">
-                <button
-                  onClick={() => setShowCollisionBoxes(!showCollisionBoxes)}
-                  className={`w-full px-2 py-1 text-xs rounded transition-colors ${
-                    showCollisionBoxes
-                      ? "bg-red-500 text-white hover:bg-red-600"
-                      : "bg-gray-500 text-white hover:bg-gray-600"
-                  }`}
-                >
-                  {showCollisionBoxes
-                    ? "Ẩn Collision Boxes"
-                    : "Hiện Collision Boxes"}
-                </button>
-
-                <button
-                  onClick={() => setShowPreviewBox(!showPreviewBox)}
-                  className={`w-full px-2 py-1 text-xs rounded transition-colors ${
-                    showPreviewBox
-                      ? "bg-gray-800 text-white hover:bg-gray-900"
-                      : "bg-gray-500 text-white hover:bg-gray-600"
-                  }`}
-                >
-                  {showPreviewBox ? "Ẩn Preview Box" : "Hiện Preview Box"}
-                </button>
-
-                <button
-                  onClick={() => setShowCheckpointBoxes(!showCheckpointBoxes)}
-                  className={`w-full px-2 py-1 text-xs rounded transition-colors ${
-                    showCheckpointBoxes
-                      ? "bg-purple-500 text-white hover:bg-purple-600"
-                      : "bg-gray-500 text-white hover:bg-gray-600"
-                  }`}
-                >
-                  {showCheckpointBoxes
-                    ? "Ẩn Checkpoint Boxes"
-                    : "Hiện Checkpoint Boxes"}
-                </button>
-
-                <button
-                  onClick={() =>
-                    setShowCheckpointPreview(!showCheckpointPreview)
-                  }
-                  className={`w-full px-2 py-1 text-xs rounded transition-colors ${
-                    showCheckpointPreview
-                      ? "bg-purple-800 text-white hover:bg-purple-900"
-                      : "bg-gray-500 text-white hover:bg-gray-600"
-                  }`}
-                >
-                  {showCheckpointPreview
-                    ? "Ẩn Checkpoint Preview"
-                    : "Hiện Checkpoint Preview"}
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Collision Helper */}
-      {showDebugInfo && (
-        <CollisionHelper
-          characterPosition={stickmanPosition}
-          onPreviewSizeChange={setPreviewBoxSize}
-        />
-      )}
-
-      {/* Checkpoint Helper */}
-      {showDebugInfo && (
-        <CheckpointHelper
-          characterPosition={stickmanPosition}
-          onAddCheckpoint={handleAddCheckpoint}
-          onPreviewSizeChange={(size) => {
-            setCheckpointPreviewSize(size);
-            // Also update checkpoint type if needed
-            setCheckpointType("seat");
-          }}
-        />
-      )}
-
-      {/* Debug Info */}
-      {showDebugInfo && process.env.NODE_ENV === "development" && (
-        <div className="fixed bottom-4 right-4 z-30 bg-black/80 text-white p-2 rounded text-xs space-y-1">
-          <div>Sitting: {isSitting ? "Yes" : "No"}</div>
-          <div>
-            Nearby: {nearbyInteractable ? nearbyInteractable.name : "None"}
-          </div>
-          <div>Type: {nearbyInteractable?.type || "None"}</div>
-          <div>
-            Button visible:{" "}
-            {!isSitting &&
-            (nearbyInteractable?.type === "seat" ||
-              nearbyInteractable?.type === "teacher")
-              ? "Yes"
-              : "No"}
-          </div>
-          <div>Camera Mode: {cameraMode}</div>
-          <div>
-            Sitting Camera Yaw:{" "}
-            {((sittingCameraYaw * 180) / Math.PI).toFixed(1)}°
-          </div>
-          <div>
-            Player Position: ({stickmanPosition.x.toFixed(1)},{" "}
-            {stickmanPosition.y.toFixed(1)}, {stickmanPosition.z.toFixed(1)})
-          </div>
-          <div>
-            Player Rotation: {((stickmanRotation * 180) / Math.PI).toFixed(1)}°
-          </div>
-        </div>
-      )}
 
       {/* Interaction Button */}
       <InteractionButton
@@ -647,6 +460,17 @@ export default function ClassroomScene({
       <CheckInModal
         visible={showCheckInModal}
         onClose={() => setShowCheckInModal(false)}
+      />
+
+      {/* Exit Confirmation Dialog */}
+      <ConfirmDialog
+        visible={showExitConfirm}
+        title="Rời khỏi phòng học?"
+        message="Bạn đang đi xa khỏi phòng học. Bạn có muốn quay trở về bản đồ chính không?"
+        confirmText="Quay về bản đồ"
+        cancelText="Ở lại"
+        onConfirm={handleConfirmExit}
+        onCancel={handleCancelExit}
       />
 
       {/* Sitting mode indicator */}

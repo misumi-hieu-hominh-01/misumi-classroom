@@ -12,4 +12,5 @@ export { default as LoginForm } from "./LoginForm";
 export { default as SignUpForm } from "./SignUpForm";
 export { TextInput, PasswordInput } from "./input";
 export { default as CheckInModal } from "./CheckInModal";
+export { default as ConfirmDialog } from "./ConfirmDialog";
 export { default } from "./TimeDisplay";

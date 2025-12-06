@@ -37,7 +37,7 @@ export default function TimeDisplay() {
   };
 
   return (
-    <div className="absolute top-4 right-4 z-10 bg-black/80 text-white rounded-lg p-3 shadow-lg min-w-[200px]">
+    <div className="bg-black/80 text-white rounded-lg p-3 shadow-lg min-w-[200px]">
       <div className="text-center">
         <div className="text-lg font-mono">{formatTime(currentTime)}</div>
         <div className="text-xs mt-1">{getTimeOfDay(currentTime)}</div>
