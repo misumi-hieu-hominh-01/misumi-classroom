@@ -40,6 +40,11 @@ export interface DailyStateResponse {
 	checkedInAt: string | null;
 }
 
+export interface AttendanceHistoryItem {
+	dateKey: string;
+	checkedAt: string;
+}
+
 export const attendanceApi = {
 	async checkIn(): Promise<CheckInResponse> {
 		const response = await apiClient.post<ApiResponse<CheckInResponse>>(
@@ -52,6 +57,14 @@ export const attendanceApi = {
 		const params = dateKey ? `?dateKey=${dateKey}` : "";
 		const response = await apiClient.get<ApiResponse<DailyStateResponse>>(
 			`/attendance/status${params}`
+		);
+		return response.data;
+	},
+
+	async getHistory(month?: string): Promise<AttendanceHistoryItem[]> {
+		const params = month ? `?month=${month}` : "";
+		const response = await apiClient.get<ApiResponse<AttendanceHistoryItem[]>>(
+			`/attendance/history${params}`
 		);
 		return response.data;
 	},

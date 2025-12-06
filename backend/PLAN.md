@@ -31,7 +31,8 @@
 
 ### 1.2. Người dùng — `user_*`
 
-- `users` — tài khoản: `{ email (unique), hash, displayName, createdAt, status }`
+- `users` — tài khoản: `{ email (unique), hash, displayName, createdAt, status, courseStartDate? }`
+  - `courseStartDate`: Ngày bắt đầu khóa học (do admin quản lý), dùng để tính toán ngày học và phân phối nội dung không trùng lặp
 - `user_profiles` — hồ sơ/cài đặt (tùy): `{ userId, settings{ uiMode }, avatarUrl }`
 - `user_progress` — tiến trình & SRS: `{ userId, moduleKey, xp, streakDays, totalScore, lastStudiedAt, srs{ ease, nextReviewAt } }`
 - `user_attendance` — điểm danh: `{ userId, dateKey, checkedAt }`
@@ -77,7 +78,15 @@
 ### 3.1. Điểm danh & unlock quota ngày
 
 - API `POST /attendance/check-in` → upsert `user_daily_state` hôm nay:
-  - `$setOnInsert`: `{ limits: {vocab,kanji,grammar}, used: {0,0,0}, assigned: {[]}, checkedInAt: nowJST }`
+  - **Kiểm tra `courseStartDate`**: User phải có `courseStartDate` được admin đặt trước khi có thể điểm danh
+  - **Tính toán ngày học**: Dựa trên `courseStartDate` và ngày hiện tại, tính số ngày đã trôi qua
+  - **Phân phối nội dung không trùng lặp**:
+    - Lấy tất cả `user_daily_state` trước đó để thu thập các ID đã được gán
+    - Lọc ra các vocab/kanji/grammar chưa được gán
+    - Gán 10 vocab, 5 kanji, 1 grammar mới (không trùng với các ngày trước)
+  - **Xử lý ngày bỏ lỡ**: Nếu user bỏ lỡ ngày điểm danh, nội dung của ngày đó sẽ bị bỏ qua vĩnh viễn. Ngày tiếp theo sẽ nhận nội dung mới tiếp theo
+    - Ví dụ: Ngày 1 điểm danh → vocab 1-10, Ngày 2 bỏ lỡ → vocab 11-20 bị bỏ qua, Ngày 3 điểm danh → vocab 21-30
+  - `$setOnInsert`: `{ limits: {vocab:10,kanji:5,grammar:1}, used: {0,0,0}, assigned: {vocabIds[],kanjiIds[],grammarIds[]}, checkedInAt: nowJST }`
   - `$set`: `{ updatedAt: now }`
 
 - Tất cả cấp bài trong ngày yêu cầu: `checkedInAt != null`.
@@ -120,8 +129,9 @@
 
 ### Attendance & Daily State
 
-- `POST /attendance/check-in` → upsert `user_daily_state` hôm nay.
-- `GET /daily/state` → trả `{ limits, used, assigned }` hôm nay.
+- `POST /attendance/check-in` → upsert `user_daily_state` hôm nay với nội dung không trùng lặp.
+- `GET /attendance/status?dateKey=YYYY-MM-DD` → trả `{ limits, used, assigned, checkedInAt }` cho ngày cụ thể (mặc định hôm nay).
+- `GET /attendance/history?month=YYYY-MM` → trả danh sách các ngày đã điểm danh trong tháng `[{ dateKey, checkedAt }, ...]`.
 
 ### Content
 
@@ -213,9 +223,11 @@
 
 ### Admin Management
 
-- `GET /admin/users` (Admin) → danh sách users (query: `page`, `limit`, `search`)
-- `GET /admin/users/:id` (Admin) → chi tiết user (bao gồm progress, attempts)
-- `PUT /admin/users/:id/status` (Admin) → cập nhật trạng thái user (body: `{ status }`)
+- `GET /users` (Admin) → danh sách tất cả users (bao gồm `courseStartDate`)
+- `PATCH /users/:id` (Admin) → cập nhật user (body: `{ displayName?, courseStartDate? }`)
+  - `courseStartDate`: Ngày bắt đầu khóa học, định dạng ISO string (YYYY-MM-DD)
+  - User cần có `courseStartDate` trước khi có thể điểm danh
+- `GET /users/me` → thông tin user hiện tại (bao gồm `courseStartDate`)
 
 ...
 
@@ -273,8 +285,13 @@ src/
 
 ## 7) Kiểm thử (acceptance checklist)
 
-- [ ] Đăng ký/đăng nhập hoạt động, JWT trả về hợp lệ
-- [ ] Check-in tạo/khởi tạo `user_daily_state` hôm nay
+- [x] Đăng ký/đăng nhập hoạt động, JWT trả về hợp lệ
+- [x] Check-in tạo/khởi tạo `user_daily_state` hôm nay với nội dung không trùng lặp
+- [x] Validation `courseStartDate`: User không có `courseStartDate` không thể điểm danh
+- [x] Phân phối nội dung: Mỗi ngày nhận nội dung mới, không trùng với các ngày trước
+- [x] Xử lý ngày bỏ lỡ: Nếu bỏ lỡ ngày, nội dung ngày đó bị bỏ qua, ngày sau nhận nội dung tiếp theo
+- [x] API `GET /attendance/history` trả về danh sách ngày đã điểm danh
+- [x] Admin có thể xem và cập nhật `courseStartDate` cho users
 - [ ] Consume quota atomic: khi hết quota trả `409`
 - [ ] Sinh `user_assignments_daily_review` từ dữ liệu hôm qua
 - [ ] Sinh `user_assignments_weekly` đầu tuần (JST)
@@ -300,8 +317,11 @@ src/
 
 ### Milestone 3: Daily state & attendance
 
-- [ ] Endpoint `POST /attendance/check-in`
-- [ ] `GET /daily/state`
+- [x] Endpoint `POST /attendance/check-in` với logic phân phối nội dung không trùng lặp
+- [x] `GET /attendance/status?dateKey=...` (thay cho `/daily/state`)
+- [x] `GET /attendance/history?month=...` để lấy lịch sử điểm danh
+- [x] Validation `courseStartDate` trước khi cho phép điểm danh
+- [x] Logic xử lý ngày bỏ lỡ (missed days) - nội dung bị bỏ qua vĩnh viễn
 - [ ] `POST /study/consume` (atomic $expr/$inc)
 
 ### Milestone 4: Assignments ngày/tuần
@@ -324,10 +344,13 @@ src/
 
 ### Milestone 7: Admin UI (basic)
 
-- [ ] Trang quản trị content (CRUD vocab/kanji/grammar/tests)
-- [ ] Trang quản lý users (xem danh sách, chi tiết, cập nhật status)
+- [x] Trang quản trị content (CRUD vocab/kanji/grammar/tests)
+- [x] Trang quản lý users (xem danh sách, cập nhật `courseStartDate`)
+  - Hiển thị danh sách users với thông tin `courseStartDate`
+  - Cho phép admin đặt/cập nhật `courseStartDate` cho từng user
+  - Giao diện date picker để chọn ngày bắt đầu khóa học
 - [ ] Trang cài đặt admin (rank, limit-learning, test-time)
-- [ ] Import CSV nhỏ cho content (vocab/kanji/grammar)
+- [x] Import CSV nhỏ cho content (vocab/kanji/grammar)
 
 ### Milestone 8: Hardening
 
@@ -342,7 +365,23 @@ src/
 
 ```http
 POST /api/attendance/check-in
-→ 200 { dateKey, limits, used, checkedInAt }
+→ 200 { dateKey, limits: {vocab:10,kanji:5,grammar:1}, used: {vocab:0,kanji:0,grammar:0}, assigned: {vocabIds:[...],kanjiIds:[...],grammarIds:[...]}, checkedInAt }
+→ 400 { message: "Course start date not set. Please contact admin." } (nếu chưa có courseStartDate)
+```
+
+**Get attendance history**
+
+```http
+GET /api/attendance/history?month=2024-01
+→ 200 [{ dateKey: "2024-01-15", checkedAt: "2024-01-15T10:30:00Z" }, ...]
+```
+
+**Update user course start date (Admin)**
+
+```http
+PATCH /api/users/:id
+Body: { courseStartDate: "2024-01-01" }
+→ 200 { id, email, displayName, role, status, courseStartDate: "2024-01-01T00:00:00Z" }
 ```
 
 **Consume quota**

@@ -36,21 +36,31 @@ export default function AdminPage() {
                 </p>
               </button>
 
-              <div className="bg-white rounded-lg shadow-lg p-6 opacity-50">
+              <button
+                onClick={() => router.push("/admin/users")}
+                className="bg-white rounded-lg shadow-lg p-6 hover:shadow-xl transition-shadow text-left group"
+              >
                 <div className="text-4xl mb-4">👥</div>
-                <h2 className="text-xl font-bold text-[#5C4A37] mb-2">
+                <h2 className="text-xl font-bold text-[#5C4A37] mb-2 group-hover:text-[#8B7355] transition-colors">
                   Quản lý người dùng
                 </h2>
-                <p className="text-gray-600">Sắp có...</p>
-              </div>
+                <p className="text-gray-600">
+                  Quản lý ngày bắt đầu khóa học cho từng người dùng
+                </p>
+              </button>
 
-              <div className="bg-white rounded-lg shadow-lg p-6 opacity-50">
+              <button
+                onClick={() => router.push("/admin/settings")}
+                className="bg-white rounded-lg shadow-lg p-6 hover:shadow-xl transition-shadow text-left group"
+              >
                 <div className="text-4xl mb-4">⚙️</div>
-                <h2 className="text-xl font-bold text-[#5C4A37] mb-2">
+                <h2 className="text-xl font-bold text-[#5C4A37] mb-2 group-hover:text-[#8B7355] transition-colors">
                   Cài đặt
                 </h2>
-                <p className="text-gray-600">Sắp có...</p>
-              </div>
+                <p className="text-gray-600">
+                  Cài đặt giới hạn học tập hàng ngày cho tất cả người dùng
+                </p>
+              </button>
             </div>
           </div>
         </div>

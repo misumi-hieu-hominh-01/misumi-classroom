@@ -135,20 +135,23 @@ export default function CheckInModal({ visible, onClose }: CheckInModalProps) {
       setSelectedDate(null);
       setError(null);
 
-      // Load today's status
-      const loadStatus = async () => {
+      // Load attendance history for current month
+      const loadHistory = async () => {
         try {
-          const todayKey = formatDateKey(new Date());
-          const status = await attendanceApi.getStatus(todayKey);
-          if (status && status.checkedInAt) {
-            setCheckedInDates((prev) => new Set(prev).add(todayKey));
-          }
+          const now = new Date();
+          const year = now.getFullYear();
+          const month = String(now.getMonth() + 1).padStart(2, "0");
+          const monthKey = `${year}-${month}`;
+
+          const history = await attendanceApi.getHistory(monthKey);
+          const checkedDates = new Set(history.map((item) => item.dateKey));
+          setCheckedInDates(checkedDates);
         } catch (err) {
-          console.error("Failed to load check-in status:", err);
+          console.error("Failed to load attendance history:", err);
         }
       };
 
-      loadStatus();
+      loadHistory();
     }
   }, [visible, isAuthenticated]);
 

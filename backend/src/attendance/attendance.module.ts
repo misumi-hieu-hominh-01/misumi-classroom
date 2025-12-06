@@ -11,6 +11,8 @@ import {
   UserDailyStateSchema,
 } from './schemas/user-daily-state.schema';
 import { ContentModule } from '../content/content.module';
+import { UsersModule } from '../users/users.module';
+import { AdminModule } from '../admin/admin.module';
 
 @Module({
   imports: [
@@ -19,6 +21,8 @@ import { ContentModule } from '../content/content.module';
       { name: UserDailyState.name, schema: UserDailyStateSchema },
     ]),
     forwardRef(() => ContentModule),
+    forwardRef(() => UsersModule),
+    forwardRef(() => AdminModule),
   ],
   controllers: [AttendanceController],
   providers: [AttendanceService],

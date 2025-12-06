@@ -49,7 +49,14 @@ export class UsersService {
     if (updateUserDto.displayName) {
       user.displayName = updateUserDto.displayName;
     }
+    if (updateUserDto.courseStartDate) {
+      user.courseStartDate = new Date(updateUserDto.courseStartDate);
+    }
     return user.save();
+  }
+
+  async findAll(): Promise<UserDocument[]> {
+    return this.userModel.find().select('-hash').exec();
   }
 
   async updateStatus(id: string, status: UserStatus): Promise<UserDocument> {

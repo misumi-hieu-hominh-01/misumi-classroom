@@ -4,6 +4,7 @@ import { useState } from "react";
 import { AdminGuard } from "../../../components/auth/AdminGuard";
 import { Header } from "../../../components/ui";
 import { ContentTab } from "../../../components/admin/content-tab";
+import { Breadcrumb } from "../../../components/admin/breadcrumb";
 
 export default function ContentManagementPage() {
   const [activeTab, setActiveTab] = useState<"vocab" | "kanji" | "grammar">(
@@ -16,6 +17,12 @@ export default function ContentManagementPage() {
         <Header />
         <div className="pt-20 px-4 pb-8">
           <div className="max-w-7xl mx-auto">
+            <Breadcrumb
+              items={[
+                { label: "Admin", href: "/admin" },
+                { label: "Quản lý nội dung" },
+              ]}
+            />
             <h1 className="text-3xl font-bold text-[#5C4A37] mb-6">
               Quản lý nội dung
             </h1>

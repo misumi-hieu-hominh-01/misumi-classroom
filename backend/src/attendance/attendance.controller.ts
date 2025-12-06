@@ -30,4 +30,12 @@ export class AttendanceController {
   ) {
     return this.attendanceService.getDailyState(user.userId, dateKey);
   }
+
+  @Get('history')
+  async getHistory(
+    @CurrentUser() user: CurrentUserPayload,
+    @Query('month') month?: string,
+  ) {
+    return this.attendanceService.getAttendanceHistory(user.userId, month);
+  }
 }

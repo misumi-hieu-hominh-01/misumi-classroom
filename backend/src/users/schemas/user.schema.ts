@@ -32,6 +32,9 @@ export class User {
   role: UserRole;
 
   @Prop()
+  courseStartDate?: Date;
+
+  @Prop()
   createdAt?: Date;
 
   @Prop()
