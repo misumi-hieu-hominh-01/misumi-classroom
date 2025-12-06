@@ -8,3 +8,4 @@ export class BulkCreateKanjiItemDto {
   @Type(() => CreateKanjiItemDto)
   items: CreateKanjiItemDto[];
 }
+

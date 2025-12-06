@@ -16,6 +16,7 @@ import {
   ChatDialog,
   CheckInModal,
   ConfirmDialog,
+  LessonModal,
 } from "../ui";
 import { useRouter } from "next/navigation";
 
@@ -71,6 +72,7 @@ export default function ClassroomScene({
   const [showTeacherDialog, setShowTeacherDialog] = useState(false);
   const [isInConversation, setIsInConversation] = useState(false);
   const [showCheckInModal, setShowCheckInModal] = useState(false);
+  const [showLessonModal, setShowLessonModal] = useState(false);
 
   // Exit confirmation dialog
   const [showExitConfirm, setShowExitConfirm] = useState(false);
@@ -462,6 +464,12 @@ export default function ClassroomScene({
         onClose={() => setShowCheckInModal(false)}
       />
 
+      {/* Lesson Modal */}
+      <LessonModal
+        visible={showLessonModal}
+        onClose={() => setShowLessonModal(false)}
+      />
+
       {/* Exit Confirmation Dialog */}
       <ConfirmDialog
         visible={showExitConfirm}
@@ -473,16 +481,29 @@ export default function ClassroomScene({
         onCancel={handleCancelExit}
       />
 
-      {/* Sitting mode indicator */}
+      {/* Sitting mode indicator and lesson button */}
       {isSitting && currentSeatCheckpoint && (
-        <div className="fixed top-1/2 left-4 z-30 bg-blue-500/90 text-white p-3 rounded-lg shadow-lg">
-          <div className="text-sm font-medium">
-            📚 Đang ngồi tại: {currentSeatCheckpoint.name}
+        <>
+          <div className="fixed top-1/2 left-4 z-30 bg-blue-500/90 text-white p-3 rounded-lg shadow-lg">
+            <div className="text-sm font-medium">
+              📚 Đang ngồi tại: {currentSeatCheckpoint.name}
+            </div>
+            <div className="text-xs text-blue-100 mt-1">
+              Nhấn <kbd className="bg-blue-600 px-1 rounded">ESC</kbd> để đứng
+              dậy
+            </div>
           </div>
-          <div className="text-xs text-blue-100 mt-1">
-            Nhấn <kbd className="bg-blue-600 px-1 rounded">ESC</kbd> để đứng dậy
+
+          {/* Start Lesson Button */}
+          <div className="fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-30">
+            <button
+              onClick={() => setShowLessonModal(true)}
+              className="px-8 py-4 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white text-lg font-semibold rounded-xl shadow-2xl transition-all transform hover:scale-105"
+            >
+              🎓 Bắt đầu bài học hôm nay
+            </button>
           </div>
-        </div>
+        </>
       )}
     </div>
   );
