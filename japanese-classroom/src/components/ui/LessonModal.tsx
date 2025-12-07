@@ -1,9 +1,10 @@
 'use client'
 
 import { useState } from 'react'
-import { X, Lock, Check } from 'lucide-react'
-import { VocabularyLesson } from './VocabularyLesson'
-import { KanjiLesson } from './KanjiLesson'
+import { X, Lock, Check, FileText } from 'lucide-react'
+import { VocabularyLesson } from './vocab'
+import { KanjiLesson } from './kanji'
+import { GrammarLesson } from './grammar'
 
 interface LessonModalProps {
 	visible: boolean
@@ -15,9 +16,12 @@ type LessonTab = 'vocabulary' | 'kanji' | 'grammar'
 export function LessonModal({ visible, onClose }: LessonModalProps) {
 	const [activeTab, setActiveTab] = useState<LessonTab>('vocabulary')
 	const [vocabProgress, setVocabProgress] = useState(0)
+	const [kanjiProgress, setKanjiProgress] = useState(0)
 	
 	// Unlock kanji when vocab is 100% complete
 	const isKanjiUnlocked = vocabProgress >= 100
+	// Unlock grammar when kanji is 100% complete
+	const isGrammarUnlocked = kanjiProgress >= 100
 
 	if (!visible) return null
 
@@ -65,15 +69,26 @@ export function LessonModal({ visible, onClose }: LessonModalProps) {
 							: 'bg-gray-200 text-gray-400 cursor-not-allowed'
 					}`}
 				>
-					Kanji
+					字 Kanji
+					{isKanjiUnlocked && kanjiProgress >= 100 && (
+						<Check className="w-4 h-4 text-green-500 bg-white rounded-full" />
+					)}
 					{!isKanjiUnlocked && <Lock className="w-4 h-4" />}
 				</button>
 				<button
-					disabled
-					className="px-6 py-3 rounded-lg font-medium bg-gray-200 text-gray-400 cursor-not-allowed flex items-center gap-2"
+					onClick={() => isGrammarUnlocked && setActiveTab('grammar')}
+					disabled={!isGrammarUnlocked}
+					className={`px-6 py-3 rounded-lg font-medium transition-colors flex items-center gap-2 ${
+						isGrammarUnlocked
+							? activeTab === 'grammar'
+								? 'bg-blue-500 text-white'
+								: 'bg-white text-gray-700 hover:bg-gray-100'
+							: 'bg-gray-200 text-gray-400 cursor-not-allowed'
+					}`}
 				>
 					Grammar
-					<Lock className="w-4 h-4" />
+					{isGrammarUnlocked && <FileText className="w-4 h-4" />}
+					{!isGrammarUnlocked && <Lock className="w-4 h-4" />}
 				</button>
 			</div>
 
@@ -84,7 +99,7 @@ export function LessonModal({ visible, onClose }: LessonModalProps) {
 				)}
 				{activeTab === 'kanji' && (
 					isKanjiUnlocked ? (
-						<KanjiLesson />
+						<KanjiLesson onProgressChange={setKanjiProgress} />
 					) : (
 						<div className="flex items-center justify-center h-full text-gray-400">
 							<div className="text-center">
@@ -96,12 +111,17 @@ export function LessonModal({ visible, onClose }: LessonModalProps) {
 					)
 				)}
 				{activeTab === 'grammar' && (
-					<div className="flex items-center justify-center h-full text-gray-400">
-						<div className="text-center">
-							<Lock className="w-16 h-16 mx-auto mb-4" />
-							<p className="text-xl">Grammar lesson coming soon</p>
+					isGrammarUnlocked ? (
+						<GrammarLesson />
+					) : (
+						<div className="flex items-center justify-center h-full text-gray-400">
+							<div className="text-center">
+								<Lock className="w-16 h-16 mx-auto mb-4" />
+								<p className="text-xl mb-2">Complete Kanji to unlock Grammar</p>
+								<p className="text-sm">Progress: {Math.round(kanjiProgress)}%</p>
+							</div>
 						</div>
-					</div>
+					)
 				)}
 			</div>
 			</div>

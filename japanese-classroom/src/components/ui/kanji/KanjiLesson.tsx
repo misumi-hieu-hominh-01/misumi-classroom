@@ -22,7 +22,11 @@ async function fetchKanjiItemsByIds(ids: string[]): Promise<KanjiItem[]> {
 		.filter((item): item is KanjiItem => item !== undefined);
 }
 
-export function KanjiLesson() {
+interface KanjiLessonProps {
+	onProgressChange?: (progress: number) => void;
+}
+
+export function KanjiLesson({ onProgressChange }: KanjiLessonProps = {}) {
 	const [currentIndex, setCurrentIndex] = useState(0);
 	const [completedIndices, setCompletedIndices] = useState<Set<number>>(
 		new Set()
@@ -69,6 +73,13 @@ export function KanjiLesson() {
 			setCompletedIndices((prev) => new Set([...prev, currentIndex]));
 		}
 	}, [currentIndex, totalKanjis]);
+
+	// Notify parent of progress changes
+	useEffect(() => {
+		if (onProgressChange) {
+			onProgressChange(progress);
+		}
+	}, [progress, onProgressChange]);
 
 	function handlePrevious() {
 		if (currentIndex > 0) {

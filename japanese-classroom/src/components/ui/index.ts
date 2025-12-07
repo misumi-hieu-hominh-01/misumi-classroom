@@ -1,4 +1,4 @@
-export { default as TimeDisplay } from "./TimeDisplay";
+export { default } from "./TimeDisplay";
 export { default as AudioController } from "./AudioController";
 export {
   default as NotificationSystem,
@@ -14,12 +14,13 @@ export { TextInput, PasswordInput } from "./input";
 export { default as CheckInModal } from "./CheckInModal";
 export { default as ConfirmDialog } from "./ConfirmDialog";
 export { LessonModal } from "./LessonModal";
-export { VocabularyLesson } from "./VocabularyLesson";
-export { KanjiLesson } from "./KanjiLesson";
-export { WordList } from "./WordList";
-export { WordDisplay } from "./WordDisplay";
-export { KanjiList } from "./KanjiList";
-export { KanjiDisplay } from "./KanjiDisplay";
-export { KanjiStrokeOrder } from "./KanjiStrokeOrder";
 export { SafeImage } from "./SafeImage";
-export { default } from "./TimeDisplay";
+
+// Vocabulary exports
+export * from "./vocab";
+
+// Kanji exports
+export * from "./kanji";
+
+// Grammar exports
+export * from "./grammar";

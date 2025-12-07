@@ -1,13 +1,13 @@
-'use client'
+"use client";
 
-import { VocabItem } from '@/api/content-api'
-import { Check } from 'lucide-react'
+import { VocabItem } from "@/api/content-api";
+import { Check } from "lucide-react";
 
 interface WordListProps {
-	words: VocabItem[]
-	currentIndex: number
-	completedIndices: Set<number>
-	onWordSelect: (index: number) => void
+	words: VocabItem[];
+	currentIndex: number;
+	completedIndices: Set<number>;
+	onWordSelect: (index: number) => void;
 }
 
 export function WordList({
@@ -19,8 +19,8 @@ export function WordList({
 	return (
 		<div className="space-y-2">
 			{words.map((word, index) => {
-				const isActive = index === currentIndex
-				const isCompleted = completedIndices.has(index)
+				const isActive = index === currentIndex;
+				const isCompleted = completedIndices.has(index);
 
 				return (
 					<button
@@ -28,10 +28,10 @@ export function WordList({
 						onClick={() => onWordSelect(index)}
 						className={`w-full p-4 rounded-lg text-left transition-all ${
 							isActive
-								? 'bg-blue-100 border-2 border-blue-500'
+								? "bg-blue-100 border-2 border-blue-500"
 								: isCompleted
-								? 'bg-white border-2 border-gray-200 hover:border-blue-300'
-								: 'bg-white border-2 border-gray-200 hover:border-gray-300'
+								? "bg-white border-2 border-gray-200 hover:border-blue-300"
+								: "bg-white border-2 border-gray-200 hover:border-gray-300"
 						}`}
 					>
 						<div className="flex items-start justify-between gap-3">
@@ -60,9 +60,9 @@ export function WordList({
 							</div>
 						</div>
 					</button>
-				)
+				);
 			})}
 		</div>
-	)
+	);
 }
 
