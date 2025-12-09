@@ -9,3 +9,5 @@ export class BulkCreateVocabItemDto {
   items: CreateVocabItemDto[];
 }
 
+
+

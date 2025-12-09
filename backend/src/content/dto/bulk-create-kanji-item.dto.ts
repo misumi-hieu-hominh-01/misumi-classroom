@@ -9,3 +9,5 @@ export class BulkCreateKanjiItemDto {
   items: CreateKanjiItemDto[];
 }
 
+
+
