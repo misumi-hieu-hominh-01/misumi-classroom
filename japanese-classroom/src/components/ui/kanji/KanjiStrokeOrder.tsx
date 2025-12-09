@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { Play, Pause, RotateCcw } from "lucide-react";
+import { RotateCcw } from "lucide-react";
 
 interface KanjiStrokeOrderProps {
   kanji: string;
@@ -10,6 +10,49 @@ interface KanjiStrokeOrderProps {
    * If omitted, the component will try to infer it from the SVG (KanjiVG -sN ids).
    */
   strokes?: number;
+}
+
+// 50 màu cơ bản với khoảng cách đều nhau trong color spectrum
+const BASE_COLORS = (() => {
+  const colors: string[] = [];
+  const hueStep = 360 / 50; // Khoảng cách đều giữa các màu (7.2 độ)
+
+  for (let i = 0; i < 50; i++) {
+    const hue = Math.floor(i * hueStep);
+    // Saturation và lightness cố định để đảm bảo màu rực rỡ và dễ nhìn
+    const saturation = 80; // Saturation cao để màu rực rỡ
+    const lightness = 55; // Lightness vừa phải để dễ nhìn
+    colors.push(`hsl(${hue}, ${saturation}%, ${lightness}%)`);
+  }
+
+  // Shuffle mảng để có sự ngẫu nhiên khi chọn màu
+  for (let i = colors.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [colors[i], colors[j]] = [colors[j], colors[i]];
+  }
+
+  return colors;
+})();
+
+// Chọn màu từ 50 màu cơ bản cho các nét
+function generateRandomColors(count: number): string[] {
+  const colors: string[] = [];
+  // Tạo một bản sao của BASE_COLORS để shuffle lại mỗi lần
+  const shuffledColors = [...BASE_COLORS];
+  for (let i = shuffledColors.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [shuffledColors[i], shuffledColors[j]] = [
+      shuffledColors[j],
+      shuffledColors[i],
+    ];
+  }
+
+  // Chọn màu từ mảng đã shuffle
+  for (let i = 0; i < count; i++) {
+    colors.push(shuffledColors[i % shuffledColors.length]);
+  }
+
+  return colors;
 }
 
 /**
@@ -23,11 +66,14 @@ export function KanjiStrokeOrder({ kanji, strokes }: KanjiStrokeOrderProps) {
   const [svgContent, setSvgContent] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [hasError, setHasError] = useState(false);
-  const [totalStrokes, setTotalStrokes] = useState<number | null>(
-    strokes ?? null
-  );
+  const [inferredStrokes, setInferredStrokes] = useState<number | null>(null);
+  const [strokeColors, setStrokeColors] = useState<string[]>([]);
+
+  // Lấy totalStrokes trực tiếp từ strokes prop, nếu không có thì dùng inferredStrokes
+  const totalStrokes = strokes ?? inferredStrokes;
 
   const svgContainerRef = useRef<HTMLDivElement | null>(null);
+  const renderedSvgContentRef = useRef<string | null>(null);
 
   // Convert kanji character to Unicode hex (KanjiVG filename format)
   function kanjiToUnicode(char: string): string {
@@ -46,6 +92,9 @@ export function KanjiStrokeOrder({ kanji, strokes }: KanjiStrokeOrderProps) {
         setHasError(false);
         setSvgContent(null);
         setCurrentStroke(0);
+        setStrokeColors([]); // Reset colors when kanji changes
+        setInferredStrokes(null); // Reset inferred strokes when kanji changes
+        renderedSvgContentRef.current = null; // Reset rendered SVG ref
 
         const unicode = kanjiToUnicode(kanji);
         if (!unicode) {
@@ -61,7 +110,9 @@ export function KanjiStrokeOrder({ kanji, strokes }: KanjiStrokeOrderProps) {
         }
 
         const svgText = await response.text();
-        setSvgContent(svgText);
+        const match = svgText.match(/<svg[\s\S]*<\/svg>/i);
+        const cleanedSvg = match ? match[0] : svgText;
+        setSvgContent(cleanedSvg);
       } catch (error) {
         console.error("Error fetching kanji SVG:", error);
         setHasError(true);
@@ -76,102 +127,134 @@ export function KanjiStrokeOrder({ kanji, strokes }: KanjiStrokeOrderProps) {
       setSvgContent(null);
       setHasError(false);
       setIsLoading(false);
+      setStrokeColors([]);
+      setInferredStrokes(null);
+      renderedSvgContentRef.current = null;
     }
   }, [kanji]);
 
-  // After SVG is rendered into the DOM, infer total strokes if not provided
+  // Render SVG vào DOM một lần khi svgContent thay đổi
   useEffect(() => {
-    if (!svgContent || strokes) return; // nếu props đã có strokes thì ưu tiên dùng
+    if (!svgContainerRef.current || !svgContent) {
+      renderedSvgContentRef.current = null;
+      return;
+    }
 
-    // Đợi React mount SVG vào DOM
-    if (!svgContainerRef.current) return;
+    // Chỉ set innerHTML khi svgContent thay đổi (tránh reset không cần thiết)
+    if (renderedSvgContentRef.current !== svgContent) {
+      const container = svgContainerRef.current;
+      container.innerHTML = svgContent;
+      renderedSvgContentRef.current = svgContent;
+    }
 
-    const svgEl = svgContainerRef.current.querySelector("svg");
-    if (!svgEl) return;
-
-    // KanjiVG đặt id dạng: kvg:05b66-s1, kvg:05b66-s2, ...
-    const strokePaths = svgEl.querySelectorAll<SVGPathElement>('[id*="-s"]');
-
-    if (strokePaths.length > 0) {
-      setTotalStrokes(strokePaths.length);
+    // Infer total strokes nếu chưa có
+    if (!strokes && svgContainerRef.current) {
+      const svgEl = svgContainerRef.current.querySelector("svg");
+      if (svgEl) {
+        const strokePaths =
+          svgEl.querySelectorAll<SVGPathElement>('[id*="-s"]');
+        if (strokePaths.length > 0) {
+          setInferredStrokes(strokePaths.length);
+        }
+      }
     }
   }, [svgContent, strokes]);
 
-  // Apply stroke visibility / emphasis based on currentStroke
+  // Generate random colors when totalStrokes is available
+  useEffect(() => {
+    if (totalStrokes && totalStrokes > 0) {
+      const colors = generateRandomColors(totalStrokes);
+      setStrokeColors(colors);
+    }
+  }, [totalStrokes]);
+
+  // Apply stroke visibility / emphasis based on currentStroke and scale SVG
   useEffect(() => {
     if (!svgContainerRef.current || !svgContent) return;
 
     const svgEl = svgContainerRef.current.querySelector("svg");
     if (!svgEl) return;
 
+    // Scale SVG – chỉ set một lần, không reset lại
+    if (!svgEl.style.width || svgEl.style.width === "") {
+      svgEl.style.setProperty("width", "100%", "important");
+      svgEl.style.setProperty("height", "100%", "important");
+      svgEl.style.setProperty("max-width", "100%", "important");
+      svgEl.style.setProperty("max-height", "100%", "important");
+      svgEl.style.setProperty("display", "block", "important");
+      svgEl.style.setProperty("margin", "auto", "important");
+      if (!svgEl.hasAttribute("preserveAspectRatio")) {
+        svgEl.setAttribute("preserveAspectRatio", "xMidYMid meet");
+      }
+    }
+
     const strokePaths = Array.from(
       svgEl.querySelectorAll<SVGPathElement>('[id*="-s"]')
     );
 
-    // Nếu không có info số nét, cứ highlight hết
     if (!strokePaths.length) return;
 
-    strokePaths.forEach((path, index) => {
-      // index < currentStroke => nét đã vẽ / đang vẽ
-      if (index < currentStroke) {
-        path.style.opacity = "1";
-        path.style.stroke = "#111";
-      } else {
-        // Nét chưa tới -> mờ đi
-        path.style.opacity = "0.15";
-        path.style.stroke = "#555";
-      }
+    const maxStrokes = totalStrokes ?? 0;
+    const isComplete = currentStroke >= maxStrokes && maxStrokes > 0;
 
-      path.style.fill = "none"; // cho chắc
-      path.style.strokeWidth = "3";
-      path.style.strokeLinecap = "round";
-      path.style.strokeLinejoin = "round";
+    strokePaths.forEach((path, index) => {
+      const visible = isComplete || index < currentStroke;
+
+      // Chỉ update style, không reset toàn bộ
+      path.style.setProperty("opacity", visible ? "1" : "0.15", "important");
+      path.style.setProperty(
+        "stroke",
+        visible ? strokeColors[index] || "#111" : "#555",
+        "important"
+      );
+      path.style.setProperty("fill", "none", "important");
+      path.style.setProperty("stroke-width", "3", "important");
+      path.style.setProperty("stroke-linecap", "round", "important");
+      path.style.setProperty("stroke-linejoin", "round", "important");
     });
-  }, [currentStroke, svgContent]);
+  }, [currentStroke, svgContent, strokeColors, totalStrokes]);
+
+  // Auto-play animation when SVG is loaded and totalStrokes is available
+  useEffect(() => {
+    if (
+      !totalStrokes ||
+      totalStrokes <= 0 ||
+      !svgContent ||
+      strokeColors.length === 0
+    )
+      return;
+
+    // Auto-start animation
+    setIsPlaying(true);
+    setCurrentStroke(0);
+  }, [svgContent, totalStrokes, strokeColors.length]);
 
   // Auto-play animation
   useEffect(() => {
-    const maxStrokes = totalStrokes ?? strokes;
-    if (!isPlaying || !maxStrokes || maxStrokes <= 0) return;
+    if (!isPlaying || !totalStrokes || totalStrokes <= 0) return;
 
     const interval = setInterval(() => {
       setCurrentStroke((prev) => {
-        if (prev >= maxStrokes) {
-          // Đã vẽ xong
+        if (prev >= totalStrokes) {
+          // Đã vẽ xong - đảm bảo tất cả nét đều hiển thị với màu đầy đủ
           setIsPlaying(false);
-          return prev;
+          return totalStrokes; // Đảm bảo currentStroke = totalStrokes để tất cả nét đều hiển thị
         }
         return prev + 1;
       });
     }, 800); // 800ms per stroke
 
     return () => clearInterval(interval);
-  }, [isPlaying, totalStrokes, strokes]);
-
-  function handlePlay() {
-    const maxStrokes = totalStrokes ?? strokes;
-    if (!maxStrokes || maxStrokes <= 0) return;
-
-    if (currentStroke >= maxStrokes) {
-      setCurrentStroke(0);
-    }
-    setIsPlaying(true);
-  }
-
-  function handlePause() {
-    setIsPlaying(false);
-  }
+  }, [isPlaying, totalStrokes]);
 
   function handleReset() {
     setCurrentStroke(0);
-    setIsPlaying(false);
+    setIsPlaying(true);
   }
-
-  const maxStrokes = totalStrokes ?? strokes ?? 0;
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center h-full">
+      <div className="flex h-full w-full items-center justify-center rounded-lg border border-gray-200 bg-white">
         <div className="text-center">
           <div className="mx-auto mb-4 h-12 w-12 animate-spin rounded-full border-4 border-blue-500 border-t-transparent" />
           <p className="text-sm text-gray-600">Loading stroke order...</p>
@@ -182,7 +265,7 @@ export function KanjiStrokeOrder({ kanji, strokes }: KanjiStrokeOrderProps) {
 
   if (hasError || !svgContent) {
     return (
-      <div className="flex h-full items-center justify-center">
+      <div className="flex h-full w-full items-center justify-center rounded-lg border border-gray-200 bg-white">
         <div className="text-center text-gray-400">
           <div className="mb-4 text-6xl">{kanji}</div>
           <p className="text-sm">Stroke order not available</p>
@@ -192,95 +275,24 @@ export function KanjiStrokeOrder({ kanji, strokes }: KanjiStrokeOrderProps) {
   }
 
   return (
-    <div className="flex h-full flex-col">
-      {/* SVG Display */}
-      <div className="mb-4 flex flex-1 items-center justify-center">
-        <div
-          ref={svgContainerRef}
-          className="h-full w-full"
-          style={{
-            filter: "drop-shadow(0 0 1px rgba(0,0,0,0.1))",
-          }}
-          dangerouslySetInnerHTML={{ __html: svgContent }}
-        />
-      </div>
+    <div className="relative flex h-full w-full items-center justify-center rounded-lg border border-gray-200 bg-white p-8">
+      {/* Reload Button - Top Right */}
+      <button
+        onClick={handleReset}
+        className="absolute right-4 top-4 rounded-full bg-white p-2 shadow-md transition-colors hover:bg-gray-50"
+        title="Reload"
+      >
+        <RotateCcw className="h-5 w-5 text-gray-700" />
+      </button>
 
-      {/* Controls */}
-      <div className="space-y-3">
-        {/* Progress Bar */}
-        {maxStrokes > 0 && (
-          <div className="space-y-2">
-            <div className="flex items-center justify-between text-xs text-gray-600">
-              <span>
-                Stroke {Math.min(currentStroke, maxStrokes)}/{maxStrokes}
-              </span>
-              <span>
-                {Math.round(
-                  (Math.min(currentStroke, maxStrokes) / maxStrokes) * 100
-                )}
-                %
-              </span>
-            </div>
-            <div className="h-2 overflow-hidden rounded-full bg-gray-200">
-              <div
-                className="h-full bg-blue-500 transition-all duration-300"
-                style={{
-                  width: `${
-                    (Math.min(currentStroke, maxStrokes) / maxStrokes) * 100
-                  }%`,
-                }}
-              />
-            </div>
-          </div>
-        )}
-
-        {/* Control Buttons */}
-        <div className="flex items-center justify-center gap-2">
-          <button
-            onClick={handleReset}
-            className="rounded-lg bg-gray-200 p-2 transition-colors hover:bg-gray-300"
-            title="Reset"
-          >
-            <RotateCcw className="h-5 w-5 text-gray-700" />
-          </button>
-
-          {isPlaying ? (
-            <button
-              onClick={handlePause}
-              className="flex items-center gap-2 rounded-lg bg-blue-500 px-6 py-2 text-white transition-colors hover:bg-blue-600"
-            >
-              <Pause className="h-5 w-5" />
-              Pause
-            </button>
-          ) : (
-            <button
-              onClick={handlePlay}
-              className="flex items-center gap-2 rounded-lg bg-blue-500 px-6 py-2 text-white transition-colors hover:bg-blue-600"
-              disabled={maxStrokes === 0}
-            >
-              <Play className="h-5 w-5" />
-              Play
-            </button>
-          )}
-        </div>
-
-        {/* Manual Stroke Slider */}
-        {maxStrokes > 0 && (
-          <div className="px-2">
-            <input
-              type="range"
-              min={0}
-              max={maxStrokes}
-              value={Math.min(currentStroke, maxStrokes)}
-              onChange={(e) => {
-                setCurrentStroke(parseInt(e.target.value, 10));
-                setIsPlaying(false);
-              }}
-              className="h-2 w-full cursor-pointer appearance-none rounded-lg bg-gray-200 accent-blue-500"
-            />
-          </div>
-        )}
-      </div>
+      {/* SVG Display - Kanji ở giữa, to */}
+      <div
+        ref={svgContainerRef}
+        className="flex h-full w-full min-h-[400px] items-center justify-center"
+        style={{
+          filter: "drop-shadow(0 0 1px rgba(0,0,0,0.1))",
+        }}
+      />
     </div>
   );
 }
