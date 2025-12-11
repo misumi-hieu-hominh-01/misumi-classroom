@@ -177,7 +177,7 @@ export function WordDisplay({ word }: WordDisplayProps) {
           <button
             onClick={handlePlayAudio}
             className="absolute top-0 right-0 p-2 bg-blue-500 hover:bg-blue-600 text-white rounded-full transition-colors shadow-lg"
-            aria-label="Play audio"
+            aria-label="Phát âm thanh"
           >
             <Volume2 className="w-5 h-5" />
           </button>
@@ -199,7 +199,7 @@ export function WordDisplay({ word }: WordDisplayProps) {
             ) : (
               <div className="text-center text-gray-400">
                 <ImageIcon className="w-16 h-16 mx-auto mb-2 opacity-50" />
-                <p className="text-sm">No image available</p>
+                <p className="text-sm">Không có hình ảnh</p>
               </div>
             )}
           </div>
@@ -234,7 +234,7 @@ export function WordDisplay({ word }: WordDisplayProps) {
                     <button
                       onClick={() => handlePlayExampleAudio(example.sentence)}
                       className="absolute top-2 right-2 p-1.5 bg-gray-200 hover:bg-gray-300 text-gray-600 rounded-full transition-colors"
-                      aria-label="Play example audio"
+                      aria-label="Phát âm thanh ví dụ"
                     >
                       <Volume2 className="w-4 h-4" />
                     </button>
@@ -259,7 +259,7 @@ export function WordDisplay({ word }: WordDisplayProps) {
             {word.synonyms && word.synonyms.length > 0 && (
               <div>
                 <h4 className="text-xs font-semibold text-gray-700 mb-1.5">
-                  Synonyms:
+                  Từ đồng nghĩa:
                 </h4>
                 <div className="flex flex-wrap gap-1.5">
                   {word.synonyms.map((synonym, index) => (
@@ -276,7 +276,7 @@ export function WordDisplay({ word }: WordDisplayProps) {
             {word.antonyms && word.antonyms.length > 0 && (
               <div>
                 <h4 className="text-xs font-semibold text-gray-700 mb-1.5">
-                  Antonyms:
+                  Từ trái nghĩa:
                 </h4>
                 <div className="flex flex-wrap gap-1.5">
                   {word.antonyms.map((antonym, index) => (

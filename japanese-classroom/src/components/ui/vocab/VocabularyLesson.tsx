@@ -109,7 +109,7 @@ export function VocabularyLesson({
       <div className="flex items-center justify-center h-full">
         <div className="text-center">
           <div className="w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-          <p className="text-gray-600">Loading vocabulary...</p>
+          <p className="text-gray-600">Đang tải từ vựng...</p>
         </div>
       </div>
     );
@@ -119,7 +119,7 @@ export function VocabularyLesson({
     return (
       <div className="flex items-center justify-center h-full">
         <div className="text-center text-red-500">
-          <p className="text-xl mb-2">Error loading vocabulary</p>
+          <p className="text-xl mb-2">Lỗi khi tải từ vựng</p>
           <p className="text-sm">{error.message}</p>
         </div>
       </div>
@@ -153,12 +153,14 @@ export function VocabularyLesson({
       {/* Left Side - Word List */}
       <div className="w-2/5 border-r border-gray-200 bg-gray-50 flex flex-col">
         <div className="p-4 border-b border-gray-200 space-y-2">
-          <h3 className="text-base font-semibold text-gray-900">Word List</h3>
+          <h3 className="text-base font-semibold text-gray-900">
+            Danh sách từ
+          </h3>
           {/* Progress Bar */}
           <div className="space-y-1.5">
             <div className="flex items-center justify-between text-xs">
               <span className="text-gray-600">
-                Progress: {completedCount}/{totalWords} Words Learned
+                Tiến độ: {completedCount}/{totalWords} từ đã học
               </span>
               <span className="font-semibold text-gray-900">
                 {Math.round(progress)}%
@@ -189,8 +191,8 @@ export function VocabularyLesson({
             className="w-full py-2 rounded-lg bg-blue-400 text-white text-sm font-semibold hover:bg-blue-500 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
           >
             {completedCount < totalWords
-              ? "Complete all to unlock test"
-              : "Start Test"}
+              ? "Hoàn thành tất cả để mở khóa bài kiểm tra"
+              : "Bắt đầu kiểm tra"}
           </button>
         </div>
       </div>
@@ -217,7 +219,7 @@ export function VocabularyLesson({
               className="px-4 py-2 rounded-lg border-2 border-gray-300 text-gray-700 text-sm font-medium hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
             >
               <ChevronLeft className="w-4 h-4" />
-              Previous
+              Trước
             </button>
 
             <button
@@ -225,7 +227,7 @@ export function VocabularyLesson({
               disabled={currentIndex === totalWords - 1}
               className="px-4 py-2 rounded-lg bg-blue-500 text-white text-sm font-medium hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
             >
-              Next
+              Tiếp theo
               <ChevronRight className="w-4 h-4" />
             </button>
           </div>

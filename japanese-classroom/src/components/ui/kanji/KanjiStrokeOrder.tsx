@@ -60,9 +60,11 @@ export function KanjiStrokeOrder({ kanji, strokes }: KanjiStrokeOrderProps) {
   const svgContainerRef = useRef<HTMLDivElement | null>(null);
   const renderedSvgContentRef = useRef<string | null>(null);
 
-  // NEW: giữ danh sách path và length để animate nét
-  const strokePathsRef = useRef<SVGPathElement[]>([]);
+  // background strokes, foreground strokes, lengths, number labels
+  const bgStrokePathsRef = useRef<SVGPathElement[]>([]);
+  const fgStrokePathsRef = useRef<SVGPathElement[]>([]);
   const strokeLengthsRef = useRef<number[]>([]);
+  const labelTextsRef = useRef<SVGTextElement[]>([]);
 
   function kanjiToUnicode(char: string): string {
     const codePoint = char.codePointAt(0);
@@ -81,8 +83,10 @@ export function KanjiStrokeOrder({ kanji, strokes }: KanjiStrokeOrderProps) {
         setStrokeColors([]);
         setInferredStrokes(null);
         renderedSvgContentRef.current = null;
-        strokePathsRef.current = [];
+        bgStrokePathsRef.current = [];
+        fgStrokePathsRef.current = [];
         strokeLengthsRef.current = [];
+        labelTextsRef.current = [];
 
         const unicode = kanjiToUnicode(kanji);
         if (!unicode) throw new Error("Invalid kanji");
@@ -113,8 +117,10 @@ export function KanjiStrokeOrder({ kanji, strokes }: KanjiStrokeOrderProps) {
       setStrokeColors([]);
       setInferredStrokes(null);
       renderedSvgContentRef.current = null;
-      strokePathsRef.current = [];
+      bgStrokePathsRef.current = [];
+      fgStrokePathsRef.current = [];
       strokeLengthsRef.current = [];
+      labelTextsRef.current = [];
     }
   }, [kanji]);
 
@@ -122,8 +128,10 @@ export function KanjiStrokeOrder({ kanji, strokes }: KanjiStrokeOrderProps) {
   useEffect(() => {
     if (!svgContainerRef.current || !svgContent) {
       renderedSvgContentRef.current = null;
-      strokePathsRef.current = [];
+      bgStrokePathsRef.current = [];
+      fgStrokePathsRef.current = [];
       strokeLengthsRef.current = [];
+      labelTextsRef.current = [];
       return;
     }
 
@@ -137,7 +145,7 @@ export function KanjiStrokeOrder({ kanji, strokes }: KanjiStrokeOrderProps) {
     if (!svgEl) return;
 
     // Scale SVG
-    if (!svgEl.style.width) {
+    if (!svgEl.style.width || svgEl.style.width === "") {
       svgEl.style.setProperty("width", "100%", "important");
       svgEl.style.setProperty("height", "100%", "important");
       svgEl.style.setProperty("max-width", "100%", "important");
@@ -149,10 +157,18 @@ export function KanjiStrokeOrder({ kanji, strokes }: KanjiStrokeOrderProps) {
       }
     }
 
-    // Lấy danh sách stroke path & sắp xếp theo id -s1, -s2, ...
+    // ----- STROKES -----
     const strokePaths = Array.from(
       svgEl.querySelectorAll<SVGPathElement>('[id*="-s"]')
     );
+
+    if (!strokePaths.length) {
+      bgStrokePathsRef.current = [];
+      fgStrokePathsRef.current = [];
+      strokeLengthsRef.current = [];
+      labelTextsRef.current = [];
+      return;
+    }
 
     strokePaths.sort((a, b) => {
       const getIndex = (el: SVGPathElement) => {
@@ -162,37 +178,75 @@ export function KanjiStrokeOrder({ kanji, strokes }: KanjiStrokeOrderProps) {
       return getIndex(a) - getIndex(b);
     });
 
-    strokePathsRef.current = strokePaths;
-    strokeLengthsRef.current = strokePaths.map((p) => {
-      try {
-        return p.getTotalLength();
-      } catch {
-        return 0;
-      }
+    bgStrokePathsRef.current = [];
+    fgStrokePathsRef.current = [];
+    strokeLengthsRef.current = [];
+
+    strokePaths.forEach((path) => {
+      const length = (() => {
+        try {
+          return path.getTotalLength();
+        } catch {
+          return 0;
+        }
+      })();
+
+      strokeLengthsRef.current.push(length);
+
+      // background stroke (xám, full)
+      path.style.setProperty("fill", "none", "important");
+      path.style.setProperty("stroke-width", "2.4", "important");
+      path.style.setProperty("stroke-linecap", "round", "important");
+      path.style.setProperty("stroke-linejoin", "round", "important");
+      path.style.setProperty("stroke", "#d4d4d8", "important");
+      path.style.setProperty("opacity", "1", "important");
+      path.style.strokeDasharray = "";
+      path.style.strokeDashoffset = "";
+      bgStrokePathsRef.current.push(path);
+
+      // foreground stroke (màu, animate)
+      const overlay = path.cloneNode(false) as SVGPathElement;
+      overlay.removeAttribute("id");
+      overlay.setAttribute("data-layer", "fg-stroke");
+      overlay.style.setProperty("fill", "none", "important");
+      overlay.style.setProperty("stroke-width", "3", "important");
+      overlay.style.setProperty("stroke-linecap", "round", "important");
+      overlay.style.setProperty("stroke-linejoin", "round", "important");
+      overlay.style.setProperty("stroke", "#111827", "important");
+      overlay.style.strokeDasharray = `${length}`;
+      overlay.style.strokeDashoffset = `${length}`;
+      overlay.style.opacity = "0";
+
+      path.parentNode?.insertBefore(overlay, path.nextSibling);
+      fgStrokePathsRef.current.push(overlay);
     });
 
-    // Infer total strokes nếu chưa có
     if (!strokes && strokePaths.length > 0) {
       setInferredStrokes(strokePaths.length);
     }
 
-    // Khởi tạo style cho tất cả nét (ẩn bằng dashoffset)
-    strokePaths.forEach((path, index) => {
-      const length = strokeLengthsRef.current[index] ?? 0;
+    // ----- STROKE NUMBER LABELS -----
+    const allTexts = Array.from(svgEl.querySelectorAll<SVGTextElement>("text"));
+    const numberTexts = allTexts
+      .map((el) => {
+        const txt = (el.textContent || "").trim();
+        const n = parseInt(txt, 10);
+        return Number.isNaN(n) ? null : { el, n };
+      })
+      .filter((x): x is { el: SVGTextElement; n: number } => x !== null)
+      .sort((a, b) => a.n - b.n)
+      .map((x) => x.el);
 
-      path.style.setProperty("fill", "none", "important");
-      path.style.setProperty("stroke-width", "3", "important");
-      path.style.setProperty("stroke-linecap", "round", "important");
-      path.style.setProperty("stroke-linejoin", "round", "important");
-      path.style.setProperty("stroke", "#555", "important");
+    labelTextsRef.current = numberTexts;
 
-      path.style.strokeDasharray = `${length}`;
-      path.style.strokeDashoffset = `${length}`;
-      path.style.opacity = "0.15";
+    numberTexts.forEach((t) => {
+      t.style.setProperty("fill", "#9ca3af", "important"); // xám
+      t.style.setProperty("opacity", "0", "important"); // ẩn lúc đầu
+      t.style.transition = "opacity 0.3s ease-out, fill 0.3s ease-out";
     });
   }, [svgContent, strokes]);
 
-  // Random màu khi có tổng stroke
+  // Random màu
   useEffect(() => {
     if (totalStrokes > 0) {
       const colors = generateRandomColors(totalStrokes);
@@ -200,47 +254,69 @@ export function KanjiStrokeOrder({ kanji, strokes }: KanjiStrokeOrderProps) {
     }
   }, [totalStrokes]);
 
-  // ANIMATION: mỗi khi currentStroke tăng, animate nét tương ứng
+  // Animate strokes + labels theo currentStroke
   useEffect(() => {
-    const paths = strokePathsRef.current;
-    if (!paths.length || totalStrokes <= 0) return;
+    const fgPaths = fgStrokePathsRef.current;
+    const labels = labelTextsRef.current;
+    if (!fgPaths.length || totalStrokes <= 0) return;
 
-    paths.forEach((path, index) => {
+    fgPaths.forEach((path, index) => {
       const length = strokeLengthsRef.current[index] ?? 0;
       const isDrawn = index < currentStroke;
 
-      // màu
       path.style.setProperty(
         "stroke",
-        isDrawn ? strokeColors[index] || "#111" : "#555",
+        strokeColors[index] || "#111827",
         "important"
       );
-
-      // thiết lập animation vẽ nét
       path.style.transition =
-        "stroke-dashoffset 0.7s ease-out, opacity 0.3s ease-out";
+        "stroke-dashoffset 0.6s ease-out, opacity 0.3s ease-out"; // 600ms
 
       if (isDrawn) {
-        // nét đã (đang) được vẽ: dashoffset 0
         path.style.strokeDasharray = `${length}`;
         path.style.strokeDashoffset = "0";
         path.style.opacity = "1";
       } else {
-        // nét chưa vẽ: ẩn
         path.style.strokeDasharray = `${length}`;
         path.style.strokeDashoffset = `${length}`;
-        path.style.opacity = "0.15";
+        path.style.opacity = "0";
       }
     });
+
+    // Label: cùng màu stroke, fade-in đúng thời điểm
+    const maxIndex = Math.min(labels.length, fgPaths.length);
+    for (let i = 0; i < maxIndex; i++) {
+      const label = labels[i];
+      const isDrawn = i < currentStroke;
+      if (isDrawn) {
+        label.style.setProperty(
+          "fill",
+          strokeColors[i] || "#111827",
+          "important"
+        );
+        label.style.opacity = "1";
+      } else {
+        label.style.setProperty("fill", "#9ca3af", "important");
+        label.style.opacity = "0";
+      }
+    }
   }, [currentStroke, strokeColors, totalStrokes]);
 
-  // Auto-play
+  // Auto-play khi có đủ info
   useEffect(() => {
-    if (!totalStrokes || !svgContent || strokeColors.length === 0) return;
+    if (
+      !totalStrokes ||
+      totalStrokes <= 0 ||
+      !svgContent ||
+      strokeColors.length === 0
+    )
+      return;
+
     setIsPlaying(true);
     setCurrentStroke(0);
   }, [svgContent, totalStrokes, strokeColors.length]);
 
+  // Auto tăng currentStroke (600ms/ stroke)
   useEffect(() => {
     if (!isPlaying || !totalStrokes || totalStrokes <= 0) return;
 
@@ -252,7 +328,7 @@ export function KanjiStrokeOrder({ kanji, strokes }: KanjiStrokeOrderProps) {
         }
         return prev + 1;
       });
-    }, 800); // tốc độ: 0.8s / nét
+    }, 600); // <== giảm từ 800 xuống 600ms
 
     return () => clearInterval(interval);
   }, [isPlaying, totalStrokes]);

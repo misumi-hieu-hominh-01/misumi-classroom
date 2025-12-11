@@ -7,16 +7,45 @@ interface KanjiDisplayProps {
   kanji: KanjiItem;
 }
 
+function formatReadings(readings: string[]): string {
+  return readings.join(", ");
+}
+
 export function KanjiDisplay({ kanji }: KanjiDisplayProps) {
   return (
     <div className="space-y-6">
-      {/* Top Section: Left (Kanji + Stroke Order) and Right (Information) */}
+      {/* Top Section: Left (Kanji + Stroke Order + Components) and Right (Information) */}
       <div className="grid grid-cols-2 gap-6">
-        {/* Left Side: Kanji Character and Stroke Order */}
-        <div className="flex justify-center">
-          <div className="w-full h-98">
-            <KanjiStrokeOrder kanji={kanji.kanji} strokes={kanji.strokes} />
+        {/* Left Side: Kanji Character, Stroke Order, and Components */}
+        <div className="space-y-6">
+          {/* Kanji Stroke Order */}
+          <div className="flex justify-center">
+            <div className="w-full h-98">
+              <KanjiStrokeOrder kanji={kanji.kanji} strokes={kanji.strokes} />
+            </div>
           </div>
+
+          {/* Component Details */}
+          {kanji.compDetail && kanji.compDetail.length > 0 && (
+            <div className="bg-purple-50 rounded-xl border-2 border-purple-200 p-6">
+              <h3 className="text-sm font-semibold text-gray-700 mb-3">
+                Các bộ liên quan
+              </h3>
+              <div className="flex flex-wrap gap-3">
+                {kanji.compDetail.map((comp, index) => (
+                  <div
+                    key={index}
+                    className="bg-white px-4 py-2 rounded-lg border border-purple-200"
+                  >
+                    <div className="text-xl font-medium text-gray-900">
+                      {comp.w}
+                    </div>
+                    <div className="text-xs text-gray-600 mt-1">{comp.h}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Right Side: Kanji Information */}
@@ -24,27 +53,18 @@ export function KanjiDisplay({ kanji }: KanjiDisplayProps) {
           {/* Hán Việt Reading - Moved to top */}
           {kanji.hanmean && kanji.hanmean.length > 0 && (
             <div>
-              <h3 className="text-sm font-semibold text-gray-700 mb-3">
-                Hán Việt (Chinese-Vietnamese Reading)
+              <h3 className="text-sm font-semibold text-gray-700 mb-2">
+                Âm Hán Việt
               </h3>
-              <div className="space-y-2">
-                {kanji.hanmean.map((reading, index) => (
-                  <div
-                    key={index}
-                    className="text-2xl font-medium text-purple-900"
-                  >
-                    {reading}
-                  </div>
-                ))}
+              <div className="text-xl font-medium text-purple-900 break-words">
+                {formatReadings(kanji.hanmean)}
               </div>
             </div>
           )}
 
           {/* Meaning */}
           <div>
-            <h3 className="text-sm font-semibold text-gray-700 mb-3">
-              Meaning
-            </h3>
+            <h3 className="text-sm font-semibold text-gray-700 mb-2">Nghĩa</h3>
             <div className="text-xl text-gray-900">
               {kanji.meaningVi.join("; ")}
             </div>
@@ -52,51 +72,35 @@ export function KanjiDisplay({ kanji }: KanjiDisplayProps) {
 
           {/* Onyomi */}
           <div>
-            <h3 className="text-sm font-semibold text-gray-700 mb-3">
-              Onyomi (Chinese Reading)
-            </h3>
+            <h3 className="text-sm font-semibold text-gray-700 mb-2">Onyomi</h3>
             {kanji.onyomi && kanji.onyomi.length > 0 ? (
-              <div className="space-y-2">
-                {kanji.onyomi.map((reading, index) => (
-                  <div
-                    key={index}
-                    className="text-2xl font-medium text-blue-900"
-                  >
-                    {reading}
-                  </div>
-                ))}
+              <div className="text-xl font-medium text-blue-900 break-words">
+                {formatReadings(kanji.onyomi)}
               </div>
             ) : (
-              <p className="text-gray-400 text-sm">No onyomi reading</p>
+              <p className="text-gray-400 text-sm">Không có cách đọc onyomi</p>
             )}
           </div>
 
           {/* Kunyomi */}
           <div>
-            <h3 className="text-sm font-semibold text-gray-700 mb-3">
-              Kunyomi (Japanese Reading)
+            <h3 className="text-sm font-semibold text-gray-700 mb-2">
+              Kunyomi
             </h3>
             {kanji.kunyomi && kanji.kunyomi.length > 0 ? (
-              <div className="space-y-2">
-                {kanji.kunyomi.map((reading, index) => (
-                  <div
-                    key={index}
-                    className="text-2xl font-medium text-green-900"
-                  >
-                    {reading}
-                  </div>
-                ))}
+              <div className="text-xl font-medium text-green-900 break-words">
+                {formatReadings(kanji.kunyomi)}
               </div>
             ) : (
-              <p className="text-gray-400 text-sm">No kunyomi reading</p>
+              <p className="text-gray-400 text-sm">Không có cách đọc kunyomi</p>
             )}
           </div>
 
           {/* Tips - Moved here, below Kunyomi */}
           {kanji.tips && kanji.tips.length > 0 && (
             <div>
-              <h3 className="text-sm font-semibold text-gray-700 mb-3">
-                💡 Learning Tips
+              <h3 className="text-sm font-semibold text-gray-700 mb-2">
+                💡 Mẹo ghi nhớ
               </h3>
               <div className="space-y-2">
                 {kanji.tips.map((tip, index) => (
@@ -114,13 +118,13 @@ export function KanjiDisplay({ kanji }: KanjiDisplayProps) {
       {((kanji.example_on && Object.keys(kanji.example_on).length > 0) ||
         (kanji.example_kun && Object.keys(kanji.example_kun).length > 0)) && (
         <div className="bg-white rounded-xl border-2 border-gray-200 p-6 space-y-4">
-          <h3 className="text-lg font-semibold text-gray-900">Example Words</h3>
+          <h3 className="text-lg font-semibold text-gray-900">Ví dụ</h3>
 
           {/* Onyomi Examples */}
           {kanji.example_on && Object.keys(kanji.example_on).length > 0 && (
             <div>
               <h4 className="text-sm font-semibold text-blue-700 mb-2">
-                Onyomi Examples:
+                Ví dụ Onyomi:
               </h4>
               <div className="space-y-2">
                 {Object.entries(kanji.example_on)
@@ -149,7 +153,7 @@ export function KanjiDisplay({ kanji }: KanjiDisplayProps) {
           {kanji.example_kun && Object.keys(kanji.example_kun).length > 0 && (
             <div>
               <h4 className="text-sm font-semibold text-green-700 mb-2">
-                Kunyomi Examples:
+                Ví dụ Kunyomi:
               </h4>
               <div className="space-y-2">
                 {Object.entries(kanji.example_kun)
@@ -173,28 +177,6 @@ export function KanjiDisplay({ kanji }: KanjiDisplayProps) {
               </div>
             </div>
           )}
-        </div>
-      )}
-
-      {/* Component Details */}
-      {kanji.compDetail && kanji.compDetail.length > 0 && (
-        <div className="bg-purple-50 rounded-xl border-2 border-purple-200 p-6">
-          <h3 className="text-sm font-semibold text-gray-700 mb-3">
-            📦 Components
-          </h3>
-          <div className="flex flex-wrap gap-3">
-            {kanji.compDetail.map((comp, index) => (
-              <div
-                key={index}
-                className="bg-white px-4 py-2 rounded-lg border border-purple-200"
-              >
-                <div className="text-2xl font-medium text-gray-900">
-                  {comp.w}
-                </div>
-                <div className="text-xs text-gray-600 mt-1">{comp.h}</div>
-              </div>
-            ))}
-          </div>
         </div>
       )}
     </div>

@@ -128,7 +128,7 @@ export function GrammarDisplay({ grammar }: GrammarDisplayProps) {
             <FileText className="w-6 h-6 text-blue-600 mt-1 flex-shrink-0" />
             <div className="flex-1">
               <h3 className="text-sm font-semibold text-blue-900 mb-2">
-                Explanation
+                Giải thích
               </h3>
               <p className="text-gray-800 leading-relaxed whitespace-pre-line">
                 {parseHtmlWithRuby(grammar.explainVi)}
@@ -140,7 +140,7 @@ export function GrammarDisplay({ grammar }: GrammarDisplayProps) {
         {/* Examples */}
         {grammar.examples && grammar.examples.length > 0 && (
           <div className="space-y-4">
-            <h2 className="text-2xl font-semibold text-gray-900">Examples</h2>
+            <h2 className="text-2xl font-semibold text-gray-900">Ví dụ</h2>
             <div className="space-y-4">
               {grammar.examples.map((example, index) => (
                 <div
@@ -179,7 +179,7 @@ export function GrammarDisplay({ grammar }: GrammarDisplayProps) {
         {/* Type Badge */}
         {grammar.type && (
           <div className="flex items-center gap-2">
-            <span className="text-sm font-medium text-gray-600">Type:</span>
+            <span className="text-sm font-medium text-gray-600">Loại:</span>
             <span className="px-4 py-2 bg-purple-100 text-purple-700 rounded-lg text-sm font-medium">
               {grammar.type}
             </span>
