@@ -38,7 +38,6 @@ function renderSentenceWithFurigana(
 
   const kanjiRegex = /[\u4e00-\u9faf]/;
 
-  // 2) Tách các block kanji trong sentence
   type Block = { start: number; end: number };
   const blocks: Block[] = [];
   let i = 0;
@@ -55,27 +54,24 @@ function renderSentenceWithFurigana(
     }
   }
 
-  // 3) Tạo các "context" (chuỗi không phải kanji) giữa các block
+  // 3) Tạo các "context" giữa các block
   const contexts: string[] = [];
   let prevEnd = 0;
   for (const b of blocks) {
-    contexts.push(sentence.slice(prevEnd, b.start)); // trước block
+    contexts.push(sentence.slice(prevEnd, b.start));
     prevEnd = b.end;
   }
-  contexts.push(sentence.slice(prevEnd)); // sau block cuối
+  contexts.push(sentence.slice(prevEnd));
 
-  // Nếu không có kanji → trả về nguyên câu
   if (blocks.length === 0) {
     return sentence
       .split("")
       .map((ch, idx) => <span key={`plain-${idx}`}>{ch}</span>);
   }
 
-  // Helper: render context + đồng thời "ăn" reading tương ứng (chỉ tăng index)
   let rPos = 0;
   const pushContext = (ctx: string) => {
     for (const ch of ctx) {
-      // reading[rPos] nên trùng ch, nhưng để an toàn ta chỉ tăng nếu khớp
       if (rPos < reading.length && reading[rPos] === ch) {
         rPos++;
       }
@@ -83,25 +79,26 @@ function renderSentenceWithFurigana(
     }
   };
 
-  // 4) Xử lý context trước block đầu tiên (nếu có)
+  // 4) Context trước block đầu tiên
   if (contexts[0]) {
     pushContext(contexts[0]);
   }
 
-  // 5) Với từng block kanji, tìm furigana bằng khoảng giữa 2 context
+  // 5) Mỗi block kanji
   for (let idx = 0; idx < blocks.length; idx++) {
     const { start, end } = blocks[idx];
     const kanjiPart = sentence.slice(start, end);
-    const ctxAfter = contexts[idx + 1]; // context sau block hiện tại
+    const ctxAfter = contexts[idx + 1] ?? "";
 
     let furigana = "";
 
     if (ctxAfter && ctxAfter.length > 0) {
-      // Tìm vị trí ctxAfter trong reading, bắt đầu từ rPos
-      const nextIndex = reading.indexOf(ctxAfter, rPos);
+      // ⚠️ Quan trọng: phải có ít nhất 1 ký tự furigana cho block kanji
+      const searchFrom = Math.min(rPos + 1, reading.length);
+      const nextIndex = reading.indexOf(ctxAfter, searchFrom);
 
       if (nextIndex === -1) {
-        // Không tìm được → lấy phần còn lại
+        // Không tìm được ctxAfter nữa → phần còn lại là furigana
         furigana = reading.slice(rPos);
         rPos = reading.length;
       } else {
@@ -109,7 +106,7 @@ function renderSentenceWithFurigana(
         rPos = nextIndex;
       }
     } else {
-      // Block cuối cùng → furigana = phần còn lại của reading
+      // Không có context sau (ví dụ câu kết thúc ngay sau block)
       furigana = reading.slice(rPos);
       rPos = reading.length;
     }
@@ -121,7 +118,6 @@ function renderSentenceWithFurigana(
       </ruby>
     );
 
-    // Render context sau block (nếu có)
     if (ctxAfter && ctxAfter.length > 0) {
       pushContext(ctxAfter);
     }
