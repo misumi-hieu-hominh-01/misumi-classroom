@@ -365,7 +365,7 @@ export function KanjiStrokeOrder({ kanji, strokes }: KanjiStrokeOrderProps) {
       <button
         onClick={handleReset}
         className="absolute right-4 top-4 rounded-full bg-white p-2 shadow-md transition-colors hover:bg-gray-50"
-        title="Reload"
+        title="Vẽ lại"
       >
         <RotateCcw className="h-5 w-5 text-gray-700" />
       </button>

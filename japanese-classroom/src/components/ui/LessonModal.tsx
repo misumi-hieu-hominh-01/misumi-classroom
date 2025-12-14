@@ -1,10 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { X, Lock, Check, FileText } from "lucide-react";
 import { VocabularyLesson } from "./vocab";
 import { KanjiLesson } from "./kanji";
 import { GrammarLesson } from "./grammar";
+import { useQuery } from "@tanstack/react-query";
+import { attendanceApi } from "@/api/attendance-api";
+import { loadProgress, getTodayDateKey } from "@/utils/lesson-progress";
 
 interface LessonModalProps {
   visible: boolean;
@@ -17,11 +20,43 @@ export function LessonModal({ visible, onClose }: LessonModalProps) {
   const [activeTab, setActiveTab] = useState<LessonTab>("vocabulary");
   const [vocabProgress, setVocabProgress] = useState(0);
   const [kanjiProgress, setKanjiProgress] = useState(0);
+  const [vocabTestPassed, setVocabTestPassed] = useState(false);
+  const [kanjiTestPassed, setKanjiTestPassed] = useState(false);
+  const [grammarTestPassed, setGrammarTestPassed] = useState(false);
 
-  // Unlock kanji when vocab is 100% complete
-  const isKanjiUnlocked = vocabProgress >= 100;
-  // Unlock grammar when kanji is 100% complete
-  const isGrammarUnlocked = kanjiProgress >= 100;
+  // Fetch daily state to get checkedInAt date
+  const { data: dailyState } = useQuery({
+    queryKey: ["daily-state"],
+    queryFn: () => attendanceApi.getStatus(),
+  });
+
+  // Load test results from localStorage when dailyState is available
+  useEffect(() => {
+    if (!dailyState?.checkedInAt) return;
+
+    const checkedInDate = new Date(dailyState.checkedInAt);
+    const dateKey = checkedInDate.toISOString().split("T")[0];
+
+    const vocabProgress = loadProgress("vocab", dateKey);
+    if (vocabProgress) {
+      setVocabTestPassed(vocabProgress.testPassed || false);
+    }
+
+    const kanjiProgress = loadProgress("kanji", dateKey);
+    if (kanjiProgress) {
+      setKanjiTestPassed(kanjiProgress.testPassed || false);
+    }
+
+    const grammarProgress = loadProgress("grammar", dateKey);
+    if (grammarProgress) {
+      setGrammarTestPassed(grammarProgress.testPassed || false);
+    }
+  }, [dailyState?.checkedInAt]);
+
+  // Unlock kanji when vocab is 100% complete AND test is 100% correct
+  const isKanjiUnlocked = vocabProgress >= 100 && vocabTestPassed;
+  // Unlock grammar when kanji is 100% complete AND test is 100% correct
+  const isGrammarUnlocked = kanjiProgress >= 100 && kanjiTestPassed;
 
   if (!visible) return null;
 
@@ -61,6 +96,11 @@ export function LessonModal({ visible, onClose }: LessonModalProps) {
           <button
             onClick={() => isKanjiUnlocked && setActiveTab("kanji")}
             disabled={!isKanjiUnlocked}
+            title={
+              !isKanjiUnlocked
+                ? "Hoàn thành từ vựng và bài test để mở khóa"
+                : ""
+            }
             className={`px-6 py-3 rounded-lg font-medium transition-colors flex items-center gap-2 ${
               isKanjiUnlocked
                 ? activeTab === "kanji"
@@ -69,7 +109,7 @@ export function LessonModal({ visible, onClose }: LessonModalProps) {
                 : "bg-gray-200 text-gray-400 cursor-not-allowed"
             }`}
           >
-            字 Kanji
+            Kanji
             {isKanjiUnlocked && kanjiProgress >= 100 && (
               <Check className="w-4 h-4 text-green-500 bg-white rounded-full" />
             )}
@@ -78,6 +118,11 @@ export function LessonModal({ visible, onClose }: LessonModalProps) {
           <button
             onClick={() => isGrammarUnlocked && setActiveTab("grammar")}
             disabled={!isGrammarUnlocked}
+            title={
+              !isGrammarUnlocked
+                ? "Hoàn thành kanji và bài test để mở khóa"
+                : ""
+            }
             className={`px-6 py-3 rounded-lg font-medium transition-colors flex items-center gap-2 ${
               isGrammarUnlocked
                 ? activeTab === "grammar"
@@ -95,37 +140,77 @@ export function LessonModal({ visible, onClose }: LessonModalProps) {
         {/* Content */}
         <div className="h-[calc(100%-140px)] overflow-hidden">
           {activeTab === "vocabulary" && (
-            <VocabularyLesson onProgressChange={setVocabProgress} />
+            <VocabularyLesson
+              onProgressChange={setVocabProgress}
+              onTestComplete={(score, total) => {
+                setVocabTestPassed(score === total);
+              }}
+              unlockNext={() => {
+                if (vocabProgress >= 100 && vocabTestPassed) {
+                  setActiveTab("kanji");
+                }
+              }}
+              nextLessonName="Kanji"
+            />
           )}
           {activeTab === "kanji" &&
             (isKanjiUnlocked ? (
-              <KanjiLesson onProgressChange={setKanjiProgress} />
+              <KanjiLesson
+                onProgressChange={setKanjiProgress}
+                onTestComplete={(score, total) => {
+                  setKanjiTestPassed(score === total);
+                }}
+              />
             ) : (
               <div className="flex items-center justify-center h-full text-gray-400">
                 <div className="text-center">
                   <Lock className="w-16 h-16 mx-auto mb-4" />
                   <p className="text-xl mb-2">
-                    Complete Vocabulary to unlock Kanji
+                    Complete Vocabulary and pass test 100% to unlock Kanji
                   </p>
                   <p className="text-sm">
                     Progress: {Math.round(vocabProgress)}%
                   </p>
+                  {vocabProgress >= 100 && !vocabTestPassed && (
+                    <p className="text-sm text-red-500 mt-2">
+                      Test: Not passed 100% yet
+                    </p>
+                  )}
+                  {vocabTestPassed && (
+                    <p className="text-sm text-green-500 mt-2">
+                      Test: Passed 100% ✓
+                    </p>
+                  )}
                 </div>
               </div>
             ))}
           {activeTab === "grammar" &&
             (isGrammarUnlocked ? (
-              <GrammarLesson />
+              <GrammarLesson
+                onTestComplete={(score, total) => {
+                  setGrammarTestPassed(score === total);
+                }}
+              />
             ) : (
               <div className="flex items-center justify-center h-full text-gray-400">
                 <div className="text-center">
                   <Lock className="w-16 h-16 mx-auto mb-4" />
                   <p className="text-xl mb-2">
-                    Complete Kanji to unlock Grammar
+                    Complete Kanji and pass test 100% to unlock Grammar
                   </p>
                   <p className="text-sm">
                     Progress: {Math.round(kanjiProgress)}%
                   </p>
+                  {kanjiProgress >= 100 && !kanjiTestPassed && (
+                    <p className="text-sm text-red-500 mt-2">
+                      Test: Not passed 100% yet
+                    </p>
+                  )}
+                  {kanjiTestPassed && (
+                    <p className="text-sm text-green-500 mt-2">
+                      Test: Passed 100% ✓
+                    </p>
+                  )}
                 </div>
               </div>
             ))}
