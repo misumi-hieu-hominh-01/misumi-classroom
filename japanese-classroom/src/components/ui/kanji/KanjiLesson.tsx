@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { KanjiList } from "./KanjiList";
 import { KanjiDisplay } from "./KanjiDisplay";
+import { KanjiTest } from "./KanjiTest";
 import { useQuery } from "@tanstack/react-query";
 import { contentApi, KanjiItem } from "@/api/content-api";
 import { attendanceApi } from "@/api/attendance-api";
@@ -30,16 +31,21 @@ async function fetchKanjiItemsByIds(ids: string[]): Promise<KanjiItem[]> {
 interface KanjiLessonProps {
   onProgressChange?: (progress: number) => void;
   onTestComplete?: (score: number, total: number) => void;
+  unlockNext?: () => void;
+  nextLessonName?: string;
 }
 
 export function KanjiLesson({
   onProgressChange,
   onTestComplete,
+  unlockNext,
+  nextLessonName,
 }: KanjiLessonProps = {}) {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [completedIndices, setCompletedIndices] = useState<Set<number>>(
     new Set()
   );
+  const [showTest, setShowTest] = useState(false);
   const [storedDateKey, setStoredDateKey] = useState<string | null>(null);
 
   // Fetch daily state to get assigned kanji IDs
@@ -147,8 +153,28 @@ export function KanjiLesson({
   }
 
   function handleStartTest() {
-    // TODO: Implement test functionality
-    console.log("Starting kanji test...");
+    setShowTest(true);
+  }
+
+  function handleCloseTest() {
+    setShowTest(false);
+  }
+
+  function handleTestComplete(score: number, total: number) {
+    if (onTestComplete) {
+      onTestComplete(score, total);
+    }
+
+    // Save test result to localStorage
+    if (dailyState?.checkedInAt && storedDateKey) {
+      const checkedInDate = new Date(dailyState.checkedInAt);
+      const dateKey = checkedInDate.toISOString().split("T")[0];
+      saveProgress("kanji", dateKey, {
+        testPassed: score === total,
+        testScore: score,
+        testTotal: total,
+      });
+    }
   }
 
   if (isLoading) {
@@ -196,90 +222,103 @@ export function KanjiLesson({
   }
 
   return (
-    <div className="flex h-full">
-      {/* Left Side - Kanji List */}
-      <div className="w-2/5 border-r border-gray-200 bg-gray-50 flex flex-col">
-        <div className="p-4 border-b border-gray-200 space-y-2">
-          <h3 className="text-base font-semibold text-gray-900">
-            Danh sách kanji
-          </h3>
-          {/* Progress Bar */}
-          <div className="space-y-1.5">
-            <div className="flex items-center justify-between text-xs">
-              <span className="text-gray-600">
-                Tiến độ: {completedCount}/{totalKanjis} kanji đã học
-              </span>
-              <span className="font-semibold text-gray-900">
-                {Math.round(progress)}%
-              </span>
-            </div>
-            <div className="h-1.5 bg-gray-200 rounded-full overflow-hidden">
-              <div
-                className="h-full bg-blue-500 transition-all duration-300"
-                style={{ width: `${progress}%` }}
-              />
+    <>
+      {/* Test Modal */}
+      {showTest && (
+        <KanjiTest
+          kanjis={kanjiItemsList}
+          onClose={handleCloseTest}
+          onTestComplete={handleTestComplete}
+          unlockNext={unlockNext}
+          nextLessonName={nextLessonName}
+        />
+      )}
+
+      <div className="flex h-full">
+        {/* Left Side - Kanji List */}
+        <div className="w-2/5 border-r border-gray-200 bg-gray-50 flex flex-col">
+          <div className="p-4 border-b border-gray-200 space-y-2">
+            <h3 className="text-base font-semibold text-gray-900">
+              Danh sách kanji
+            </h3>
+            {/* Progress Bar */}
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-gray-600">
+                  Tiến độ: {completedCount}/{totalKanjis} kanji đã học
+                </span>
+                <span className="font-semibold text-gray-900">
+                  {Math.round(progress)}%
+                </span>
+              </div>
+              <div className="h-1.5 bg-gray-200 rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-blue-500 transition-all duration-300"
+                  style={{ width: `${progress}%` }}
+                />
+              </div>
             </div>
           </div>
-        </div>
 
-        <div className="flex-1 overflow-y-auto p-3">
-          <KanjiList
-            kanjis={kanjiItemsList}
-            currentIndex={currentIndex}
-            completedIndices={completedIndices}
-            onKanjiSelect={handleKanjiSelect}
-          />
-        </div>
+          <div className="flex-1 overflow-y-auto p-3">
+            <KanjiList
+              kanjis={kanjiItemsList}
+              currentIndex={currentIndex}
+              completedIndices={completedIndices}
+              onKanjiSelect={handleKanjiSelect}
+            />
+          </div>
 
-        <div className="p-4 border-t border-gray-200 space-y-3">
-          <button
-            onClick={handleStartTest}
-            disabled={completedCount < totalKanjis}
-            className="w-full py-2 rounded-lg bg-blue-400 text-white text-sm font-semibold hover:bg-blue-500 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
-          >
-            {completedCount < totalKanjis
-              ? "Hoàn thành tất cả để mở khóa bài kiểm tra"
-              : "Bắt đầu kiểm tra"}
-          </button>
-        </div>
-      </div>
-
-      {/* Right Side - Kanji Display */}
-      <div className="w-3/5 flex flex-col">
-        <div className="flex-1 overflow-y-auto p-6">
-          {currentKanji ? (
-            <KanjiDisplay kanji={currentKanji} />
-          ) : (
-            <div className="flex items-center justify-center h-full text-gray-400">
-              <p>Chọn một kanji để xem chi tiết</p>
-            </div>
-          )}
-        </div>
-
-        {/* Navigation and Actions */}
-        <div className="border-t border-gray-200 p-4 space-y-3">
-          {/* Navigation Buttons */}
-          <div className="flex items-center justify-between gap-3">
+          <div className="p-4 border-t border-gray-200 space-y-3">
             <button
-              onClick={handlePrevious}
-              disabled={currentIndex === 0}
-              className="px-4 py-2 rounded-lg border-2 border-gray-300 text-gray-700 text-sm font-medium hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
+              onClick={handleStartTest}
+              disabled={completedCount < totalKanjis}
+              className="w-full py-2 rounded-lg bg-blue-400 text-white text-sm font-semibold hover:bg-blue-500 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
             >
-              <ChevronLeft className="w-4 h-4" />
-              Trước
-            </button>
-
-            <button
-              onClick={handleNext}
-              disabled={currentIndex === totalKanjis - 1}
-              className="px-4 py-2 rounded-lg bg-blue-500 text-white text-sm font-medium hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
-            >
-              Tiếp theo
-              <ChevronRight className="w-4 h-4" />
+              {completedCount < totalKanjis
+                ? "Hoàn thành tất cả để mở khóa bài kiểm tra"
+                : "Bắt đầu kiểm tra"}
             </button>
           </div>
         </div>
+
+        {/* Right Side - Kanji Display */}
+        <div className="w-3/5 flex flex-col">
+          <div className="flex-1 overflow-y-auto p-6">
+            {currentKanji ? (
+              <KanjiDisplay kanji={currentKanji} />
+            ) : (
+              <div className="flex items-center justify-center h-full text-gray-400">
+                <p>Chọn một kanji để xem chi tiết</p>
+              </div>
+            )}
+          </div>
+
+          {/* Navigation and Actions */}
+          <div className="border-t border-gray-200 p-4 space-y-3">
+            {/* Navigation Buttons */}
+            <div className="flex items-center justify-between gap-3">
+              <button
+                onClick={handlePrevious}
+                disabled={currentIndex === 0}
+                className="px-4 py-2 rounded-lg border-2 border-gray-300 text-gray-700 text-sm font-medium hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
+              >
+                <ChevronLeft className="w-4 h-4" />
+                Trước
+              </button>
+
+              <button
+                onClick={handleNext}
+                disabled={currentIndex === totalKanjis - 1}
+                className="px-4 py-2 rounded-lg bg-blue-500 text-white text-sm font-medium hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
+              >
+                Tiếp theo
+                <ChevronRight className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+        </div>
       </div>
-    </div>
+    </>
   );
 }

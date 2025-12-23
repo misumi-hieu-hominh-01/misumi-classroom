@@ -229,6 +229,118 @@
   - User cần có `courseStartDate` trước khi có thể điểm danh
 - `GET /users/me` → thông tin user hiện tại (bao gồm `courseStartDate`)
 
+---
+
+## 11) Frontend Features (Japanese Classroom)
+
+### 11.1. Lesson Progress & Unlock Logic
+
+**Unlock Requirements:**
+
+- **Kanji unlock**: Yêu cầu hoàn thành Vocabulary 100% (đọc hết tất cả từ) VÀ đạt 100% trong bài test từ vựng
+- **Grammar unlock**: Yêu cầu hoàn thành Kanji 100% (đọc hết tất cả kanji) VÀ đạt 100% trong bài test kanji
+- Logic unlock được quản lý trong `LessonModal` component với state `vocabTestPassed`, `kanjiTestPassed`
+- Unlock button không tự động chuyển tab, chỉ unlock lesson tiếp theo (user tự chuyển tab nếu muốn)
+
+**Progress Persistence:**
+
+- Progress được lưu vào `localStorage` với key format: `lesson_progress_{type}_{dateKey}`
+- Mỗi lesson type (vocab/kanji/grammar) lưu:
+  - `completedIndices`: Mảng các index đã học
+  - `testPassed`: Boolean - đã pass test 100% chưa
+  - `testScore`: Điểm test
+  - `testTotal`: Tổng số câu
+  - `lastUpdated`: Timestamp
+- Progress tự động reset khi điểm danh ngày mới (dựa trên `checkedInAt` dateKey)
+- **Auto-restore progress**: Khi mở lại test đã đạt 100%, tự động load và mark tất cả câu hỏi là completed, không cần làm lại
+- Utility functions trong `@/utils/lesson-progress.ts`:
+  - `loadProgress()`: Load progress từ localStorage
+  - `saveProgress()`: Lưu progress vào localStorage
+  - `clearProgress()`: Xóa progress cho một ngày cụ thể
+
+### 11.2. Test Results & Unlock Button
+
+**Test Completion Flow:**
+
+- Khi hoàn thành test và đạt 100% chính xác:
+  - Hiển thị nút "Mở khóa {NextLesson}" (màu xanh lá, có icon check) và nút "Đóng"
+  - Click nút unlock sẽ unlock lesson tiếp theo nhưng không tự động chuyển tab
+- Test results được lưu vào localStorage và load lại khi mở modal
+- Callback `onTestComplete(score, total)` được truyền từ test component → lesson component → modal
+- **Skip completed questions**: Khi quay lại test đã hoàn thành, các câu hỏi đã completed sẽ tự động bỏ qua
+
+### 11.3. Vocabulary Matching Test
+
+**Features:**
+
+- Matching game: Ghép nghĩa tiếng Việt với từ tiếng Nhật
+- Cả 2 cột (Vietnamese và Japanese) đều được random
+- Vietnamese cards có thể flip (click để mở/đóng)
+- SVG lines kết nối các card đã match (tính toán vị trí chính xác với scroll)
+- Progress bar hiển thị số lượng đã ghép
+- Kết quả test hiển thị chi tiết từng câu đúng/sai
+
+### 11.4. Kanji Test Features
+
+**Interactive Stroke Order Test:**
+
+- **Stroke Order Memory Test**: Thay vì multiple choice, câu hỏi đầu tiên là interactive test nhớ nét vẽ
+  - Hiển thị tất cả nét vẽ dưới dạng background (màu xám)
+  - User click vào các nét vẽ theo thứ tự đúng
+  - Nếu click đúng → nét vẽ hiển thị với màu sắc
+  - Nếu click sai → hiển thị dấu X màu đỏ tại vị trí click (tự động ẩn sau 1 giây)
+  - Tự động chuyển câu tiếp theo khi hoàn thành tất cả nét vẽ
+- **Hearts System**:
+  - Hiển thị 3 trái tim ở góc phải trên cùng của khung test
+  - Mỗi lần click sai nét vẽ → mất 1 trái tim từ trái sang phải với hiệu ứng fade out và scale
+  - Khi mất hết 3 trái tim → hiển thị modal gợi ý với `KanjiStrokeOrder` component
+  - Modal có nút "Thử lại" để reset và cho phép thử lại từ đầu
+- **Skip Completed Questions**:
+  - Sau khi hoàn thành stroke order test, không cần làm lại khi quay lại
+  - Nút "Trước" tự động bỏ qua các câu stroke order đã hoàn thành
+  - Hiển thị thông báo "Đã hoàn thành nét vẽ" và tự động chuyển câu tiếp theo
+- **Retry Mode**:
+  - Khi làm lại test, có nút "Bỏ qua (tự tính đúng)" cho stroke order questions
+  - Các câu đã hoàn thành trước đó được giữ lại, không reset
+
+**Reading Questions:**
+
+- Câu hỏi thứ 2: Chọn âm đọc (onyomi/kunyomi) của kanji
+- 4 đáp án được tạo từ: đáp án đúng + 3 đáp án sai (từ kanji khác + sample data)
+- Đảm bảo không có đáp án trùng lặp
+
+**Component Architecture:**
+
+- `KanjiStrokeOrderTest`: Component chính cho interactive stroke order test
+- `HeartsDisplay`: Component hiển thị trái tim (tái sử dụng)
+- `KanjiHintModal`: Modal gợi ý nét vẽ khi hết trái tim (tái sử dụng)
+- `KanjiStrokeOrder`: Component hiển thị animation nét vẽ (dùng trong modal hint)
+- Tất cả components được export từ `@/components/ui/kanji/index.ts`
+
+### 11.5. Internationalization
+
+- Tất cả UI text đã được chuyển sang tiếng Việt:
+  - Vocabulary Lesson: "Danh sách từ", "Tiến độ", "Bắt đầu kiểm tra", "Trước", "Tiếp theo"
+  - Kanji Lesson: "Danh sách kanji", "Tiến độ: X/Y kanji đã học", "Hoàn thành tất cả để mở khóa bài kiểm tra"
+  - Grammar Lesson: "Danh sách ngữ pháp", "Tiến độ: X/Y điểm ngữ pháp đã học"
+  - Test Results: "Kết quả kiểm tra", "Chi tiết đáp án", "Đạt yêu cầu", "Chưa đạt yêu cầu"
+  - Kanji Test: "Click vào các nét vẽ theo thứ tự đúng", "Nét X/Y", "Bỏ qua (tự tính đúng)", "Gợi ý nét vẽ", "Thử lại"
+
+### 11.6. UI/UX Improvements
+
+- Modal test results có scroll cho phần body, header và footer cố định
+- Progress được hiển thị real-time trong lesson components
+- Tooltip trên tab buttons khi chưa unlock: "Hoàn thành từ vựng và bài test để mở khóa"
+- Check icon hiển thị trên tab khi đã hoàn thành 100%
+- **Kanji stroke order display**:
+  - Ẩn số label ngay từ đầu để tránh flash khi load
+  - SVG tự động scale để fit container (95% kích thước)
+  - Error markers hiển thị đúng vị trí click
+- **Hearts display**:
+  - Hiển thị ở góc phải trên cùng, cùng hàng với text hướng dẫn
+  - Text hướng dẫn được căn giữa
+  - Hiệu ứng mất từ trái sang phải (cả animation và màu sắc)
+
 ...
 
 **Mã lỗi khuyến nghị**: `401` (auth), `403` (no permission / chưa check-in), `404`, `409` (quota hết / attempt limit), `422` (payload sai), `500`.
@@ -285,6 +397,8 @@ src/
 
 ## 7) Kiểm thử (acceptance checklist)
 
+### Backend
+
 - [x] Đăng ký/đăng nhập hoạt động, JWT trả về hợp lệ
 - [x] Check-in tạo/khởi tạo `user_daily_state` hôm nay với nội dung không trùng lặp
 - [x] Validation `courseStartDate`: User không có `courseStartDate` không thể điểm danh
@@ -299,6 +413,24 @@ src/
 - [ ] Custom tests: tạo, bắt đầu, submit → xem kết quả
 - [ ] Leaderboard: lấy top N theo `period`
 - [ ] Streak tăng/giữ/đứt đúng khi check-in liên tiếp
+
+### Frontend
+
+- [x] Lesson progress được lưu vào localStorage và persist qua refresh
+- [x] Progress tự động reset khi điểm danh ngày mới
+- [x] Auto-restore progress khi mở lại test đã đạt 100%
+- [x] Unlock logic: Kanji chỉ unlock khi vocab 100% + test 100%
+- [x] Unlock logic: Grammar chỉ unlock khi kanji 100% + test 100%
+- [x] Nút "Mở khóa Kanji/Grammar" hiển thị khi test đạt 100% (không tự động chuyển tab)
+- [x] Vocabulary matching test với random cả 2 cột
+- [x] Kanji interactive stroke order test với click detection và error feedback
+- [x] Hearts system (3 trái tim) với hint modal khi hết trái tim
+- [x] Skip completed stroke order questions khi quay lại test
+- [x] Retry mode với nút "Bỏ qua (tự tính đúng)" cho stroke order
+- [x] Test results modal có scroll đúng cách
+- [x] Tất cả UI text đã chuyển sang tiếng Việt
+- [x] Progress bar hiển thị real-time trong lessons
+- [x] Component architecture: Tách reusable components (HeartsDisplay, KanjiHintModal)
 
 ---
 
@@ -351,6 +483,17 @@ src/
   - Giao diện date picker để chọn ngày bắt đầu khóa học
 - [ ] Trang cài đặt admin (rank, limit-learning, test-time)
 - [x] Import CSV nhỏ cho content (vocab/kanji/grammar)
+
+### Milestone 9: Frontend Lesson Features
+
+- [x] Vocabulary matching test với random và flip cards
+- [x] Progress persistence với localStorage (vocab/kanji/grammar)
+- [x] Auto-reset progress khi điểm danh ngày mới
+- [x] Unlock logic: Yêu cầu 100% progress + 100% test score
+- [x] Unlock button hiển thị khi test đạt 100%
+- [x] Internationalization: Tất cả UI text tiếng Việt
+- [x] Test results modal với scroll và chi tiết đáp án
+- [x] Real-time progress tracking trong lesson components
 
 ### Milestone 8: Hardening
 

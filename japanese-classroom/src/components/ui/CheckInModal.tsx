@@ -2,7 +2,11 @@
 
 import { useState, useEffect } from "react";
 import { X, CheckCircle2, Sparkles } from "lucide-react";
-import { attendanceApi } from "../../api/attendance-api";
+import { useQueryClient } from "@tanstack/react-query";
+import {
+  attendanceApi,
+  type DailyStateResponse,
+} from "../../api/attendance-api";
 import { useAuth } from "../../contexts/AuthContext";
 
 interface CheckInModalProps {
@@ -19,6 +23,7 @@ interface DateInfo {
 
 export default function CheckInModal({ visible, onClose }: CheckInModalProps) {
   const { isAuthenticated } = useAuth();
+  const queryClient = useQueryClient();
   const [checkedInDates, setCheckedInDates] = useState<Set<string>>(new Set());
   const [showReward, setShowReward] = useState(false);
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
@@ -86,7 +91,18 @@ export default function CheckInModal({ visible, onClose }: CheckInModalProps) {
 
     try {
       // Call API to check in
-      await attendanceApi.checkIn();
+      const checkInResponse = await attendanceApi.checkIn();
+
+      // Map CheckInResponse to DailyStateResponse and save to React Query cache
+      const dailyState: DailyStateResponse = {
+        limits: checkInResponse.limits,
+        used: checkInResponse.used,
+        assigned: checkInResponse.assigned,
+        checkedInAt: checkInResponse.checkedInAt,
+      };
+
+      // Save to React Query cache so lesson components can use it immediately
+      queryClient.setQueryData(["daily-state"], dailyState);
 
       // Update checked in dates
       setCheckedInDates((prev) => new Set(prev).add(dateKey));

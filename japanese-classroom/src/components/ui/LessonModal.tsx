@@ -7,7 +7,7 @@ import { KanjiLesson } from "./kanji";
 import { GrammarLesson } from "./grammar";
 import { useQuery } from "@tanstack/react-query";
 import { attendanceApi } from "@/api/attendance-api";
-import { loadProgress, getTodayDateKey } from "@/utils/lesson-progress";
+import { loadProgress } from "@/utils/lesson-progress";
 
 interface LessonModalProps {
   visible: boolean;
@@ -22,7 +22,8 @@ export function LessonModal({ visible, onClose }: LessonModalProps) {
   const [kanjiProgress, setKanjiProgress] = useState(0);
   const [vocabTestPassed, setVocabTestPassed] = useState(false);
   const [kanjiTestPassed, setKanjiTestPassed] = useState(false);
-  const [grammarTestPassed, setGrammarTestPassed] = useState(false);
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const [grammarTestPassed, setGrammarTestPassed] = useState(false); // Will be used for future grammar unlock logic
 
   // Fetch daily state to get checkedInAt date
   const { data: dailyState } = useQuery({
@@ -146,9 +147,9 @@ export function LessonModal({ visible, onClose }: LessonModalProps) {
                 setVocabTestPassed(score === total);
               }}
               unlockNext={() => {
-                if (vocabProgress >= 100 && vocabTestPassed) {
-                  setActiveTab("kanji");
-                }
+                // Always switch to kanji tab when unlock is called
+                // (only called when test is 100% perfect)
+                setActiveTab("kanji");
               }}
               nextLessonName="Kanji"
             />
@@ -160,6 +161,11 @@ export function LessonModal({ visible, onClose }: LessonModalProps) {
                 onTestComplete={(score, total) => {
                   setKanjiTestPassed(score === total);
                 }}
+                unlockNext={() => {
+                  // Just unlock grammar, don't switch tab automatically
+                  // User can manually switch to grammar tab if they want
+                }}
+                nextLessonName="Ngữ pháp"
               />
             ) : (
               <div className="flex items-center justify-center h-full text-gray-400">
