@@ -64,7 +64,13 @@ export function VocabTestResult({
         <div className="flex items-center justify-between p-6 border-b border-gray-200 flex-shrink-0">
           <h2 className="text-2xl font-bold text-gray-900">Kết quả kiểm tra</h2>
           <button
-            onClick={onClose}
+            onClick={() => {
+              // If perfect, unlock before closing
+              if (isPerfect && unlockNext) {
+                unlockNext();
+              }
+              onClose();
+            }}
             className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
           >
             <X className="w-6 h-6 text-gray-500" />
@@ -213,19 +219,33 @@ export function VocabTestResult({
         <div className="p-6 border-t border-gray-200 bg-gray-50 flex-shrink-0">
           <div className="flex gap-3 justify-end">
             {isPerfect && unlockNext && nextLessonName ? (
-              <button
-                onClick={() => {
-                  if (onTestComplete) {
-                    onTestComplete(correctAnswers, totalWords);
-                  }
-                  unlockNext();
-                  onClose();
-                }}
-                className="px-8 py-3 rounded-xl bg-gradient-to-r from-green-500 to-green-600 text-white font-semibold hover:from-green-600 hover:to-green-700 shadow-lg transition-all flex items-center gap-2"
-              >
-                <CheckCircle className="w-5 h-5" />
-                Mở khóa {nextLessonName}
-              </button>
+              <>
+                <button
+                  onClick={() => {
+                    if (onTestComplete) {
+                      onTestComplete(correctAnswers, totalWords);
+                    }
+                    unlockNext();
+                    onClose();
+                  }}
+                  className="px-8 py-3 rounded-xl bg-gradient-to-r from-green-500 to-green-600 text-white font-semibold hover:from-green-600 hover:to-green-700 shadow-lg transition-all flex items-center gap-2"
+                >
+                  <CheckCircle className="w-5 h-5" />
+                  Mở khóa {nextLessonName}
+                </button>
+                <button
+                  onClick={() => {
+                    if (onTestComplete) {
+                      onTestComplete(correctAnswers, totalWords);
+                    }
+                    unlockNext();
+                    onClose();
+                  }}
+                  className="px-6 py-3 rounded-xl border-2 border-gray-300 text-gray-700 font-semibold hover:bg-gray-100 transition-colors"
+                >
+                  Đóng
+                </button>
+              </>
             ) : (
               <>
                 <button

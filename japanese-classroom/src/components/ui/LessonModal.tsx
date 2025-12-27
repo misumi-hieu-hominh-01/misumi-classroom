@@ -147,9 +147,9 @@ export function LessonModal({ visible, onClose }: LessonModalProps) {
                 setVocabTestPassed(score === total);
               }}
               unlockNext={() => {
-                // Always switch to kanji tab when unlock is called
-                // (only called when test is 100% perfect)
-                setActiveTab("kanji");
+                // Just unlock kanji, don't switch tab automatically
+                // User can manually switch to kanji tab if they want
+                // The unlock state is already handled by vocabTestPassed state
               }}
               nextLessonName="Kanji"
             />

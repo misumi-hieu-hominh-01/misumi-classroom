@@ -15,11 +15,14 @@ import {
 interface KanjiQuestion {
   kanjiId: string;
   kanji: string;
-  questionType: "strokeOrder" | "reading";
-  readingType?: "onyomi" | "kunyomi";
-  correctAnswer: string;
-  options?: string[];
-  correctIndex?: number;
+  questionType: "strokeOrder" | "multiReading";
+  subQuestions?: {
+    type: "hanviet" | "meaning" | "onyomi" | "kunyomi";
+    question: string;
+    correctAnswer: string;
+    rowIndex: number;
+  }[];
+  allOptions?: string[][];
   isCompleted?: boolean;
 }
 
@@ -27,7 +30,7 @@ interface KanjiTestResultProps {
   totalQuestions: number;
   correctAnswers: number;
   questions: KanjiQuestion[];
-  selectedAnswers: Map<number, number>;
+  selectedAnswers: Map<number, Map<number, number>>;
   strokeOrderCompleted?: Map<number, boolean>;
   kanjis: KanjiItem[];
   onRetry: () => void;
@@ -38,12 +41,12 @@ interface KanjiTestResultProps {
 }
 
 export function KanjiTestResult({
-  totalQuestions,
-  correctAnswers,
+  totalQuestions: _totalQuestions, // eslint-disable-line @typescript-eslint/no-unused-vars
+  correctAnswers: _correctAnswers, // eslint-disable-line @typescript-eslint/no-unused-vars
   questions,
   selectedAnswers,
   strokeOrderCompleted = new Map(),
-  kanjis,
+  kanjis: _kanjis, // eslint-disable-line @typescript-eslint/no-unused-vars
   onRetry,
   onClose,
   onTestComplete,
@@ -51,7 +54,52 @@ export function KanjiTestResult({
   nextLessonName,
 }: KanjiTestResultProps) {
   const [showDetails, setShowDetails] = useState(false);
-  const percentage = Math.round((correctAnswers / totalQuestions) * 100);
+
+  // Calculate total sub-questions (stroke order + all sub-questions)
+  const totalSubQuestions = questions.reduce((total, q) => {
+    if (q.questionType === "strokeOrder") return total + 1;
+    if (q.questionType === "multiReading")
+      return total + (q.subQuestions?.length || 0);
+    return total;
+  }, 0);
+
+  // Recalculate correct answers to ensure accuracy
+  const recalculatedCorrectAnswers = questions.reduce(
+    (correct, question, index) => {
+      if (question.questionType === "strokeOrder") {
+        // Stroke order question is correct if completed
+        if (strokeOrderCompleted.get(index)) {
+          return correct + 1;
+        }
+      } else if (question.questionType === "multiReading") {
+        // Multi-reading question - each sub-question counts as 1
+        const subMap = selectedAnswers.get(index);
+        if (subMap && question.subQuestions && question.allOptions) {
+          question.subQuestions.forEach((subQ, subIndex) => {
+            const selectedIndex = subMap.get(subIndex);
+            if (selectedIndex !== undefined) {
+              const selectedAnswer =
+                question.allOptions![subQ.rowIndex][selectedIndex];
+              if (selectedAnswer === subQ.correctAnswer) {
+                correct++;
+              }
+            }
+          });
+        }
+      }
+      return correct;
+    },
+    0
+  );
+
+  // Use recalculated values for display
+  const finalCorrectAnswers = recalculatedCorrectAnswers;
+  const finalTotalQuestions = totalSubQuestions;
+
+  const percentage =
+    finalTotalQuestions > 0
+      ? Math.round((finalCorrectAnswers / finalTotalQuestions) * 100)
+      : 0;
   const isPassed = percentage >= 70;
   const isPerfect = percentage === 100;
 
@@ -63,11 +111,6 @@ export function KanjiTestResult({
     return "Cần cố gắng thêm! Hãy ôn lại bài nhé! 💪";
   }
 
-  // Get kanji by ID
-  function getKanjiById(kanjiId: string): KanjiItem | undefined {
-    return kanjis.find((k) => k._id === kanjiId);
-  }
-
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col overflow-hidden">
@@ -75,7 +118,13 @@ export function KanjiTestResult({
         <div className="flex items-center justify-between p-6 border-b border-gray-200 flex-shrink-0">
           <h2 className="text-2xl font-bold text-gray-900">Kết quả kiểm tra</h2>
           <button
-            onClick={onClose}
+            onClick={() => {
+              // If perfect, unlock before closing
+              if (isPerfect && unlockNext) {
+                unlockNext();
+              }
+              onClose();
+            }}
             className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
           >
             <X className="w-6 h-6 text-gray-500" />
@@ -104,7 +153,7 @@ export function KanjiTestResult({
                   {percentage}%
                 </div>
                 <div className="text-xl text-gray-700 font-semibold">
-                  {correctAnswers}/{totalQuestions} câu đúng
+                  {finalCorrectAnswers}/{finalTotalQuestions} câu đúng
                 </div>
               </div>
 
@@ -145,66 +194,35 @@ export function KanjiTestResult({
             {showDetails && (
               <div className="mt-4 space-y-3">
                 {questions.map((question, idx) => {
-                  let isCorrect = false;
-                  let selectedAnswer: string | null = null;
-
                   if (question.questionType === "strokeOrder") {
-                    isCorrect = strokeOrderCompleted.get(idx) === true;
-                    selectedAnswer = isCorrect
-                      ? "Đã hoàn thành"
-                      : "Chưa hoàn thành";
-                  } else {
-                    const selectedIndex = selectedAnswers.get(idx);
-                    isCorrect =
-                      selectedIndex !== undefined &&
-                      selectedIndex === question.correctIndex;
-                    selectedAnswer =
-                      selectedIndex !== undefined && question.options
-                        ? question.options[selectedIndex]
-                        : null;
-                  }
+                    const isCorrect = strokeOrderCompleted.get(idx) === true;
 
-                  const kanji = getKanjiById(question.kanjiId);
-
-                  return (
-                    <div
-                      key={idx}
-                      className={`p-4 rounded-xl border-2 ${
-                        isCorrect
-                          ? "border-green-300 bg-green-50"
-                          : "border-red-300 bg-red-50"
-                      }`}
-                    >
-                      <div className="flex items-start gap-4">
-                        {/* Icon */}
-                        <div className="flex-shrink-0 mt-1">
-                          {isCorrect ? (
-                            <CheckCircle className="w-6 h-6 text-green-600" />
-                          ) : (
-                            <XCircle className="w-6 h-6 text-red-600" />
-                          )}
-                        </div>
-
-                        {/* Content */}
-                        <div className="flex-1 space-y-3">
-                          {/* Question */}
-                          <div>
-                            <div className="text-3xl font-medium text-gray-900 mb-2">
-                              {question.kanji}
-                            </div>
-                            <p className="text-sm text-gray-600">
-                              {question.questionType === "strokeOrder"
-                                ? "Nhớ nét vẽ kanji theo thứ tự đúng"
-                                : `Âm đọc ${
-                                    question.readingType === "onyomi"
-                                      ? "on&apos;yomi"
-                                      : "kun&apos;yomi"
-                                  } của kanji này là gì?`}
-                            </p>
+                    return (
+                      <div
+                        key={`${idx}-stroke`}
+                        className={`p-4 rounded-xl border-2 ${
+                          isCorrect
+                            ? "border-green-300 bg-green-50"
+                            : "border-red-300 bg-red-50"
+                        }`}
+                      >
+                        <div className="flex items-start gap-4">
+                          <div className="flex-shrink-0 mt-1">
+                            {isCorrect ? (
+                              <CheckCircle className="w-6 h-6 text-green-600" />
+                            ) : (
+                              <XCircle className="w-6 h-6 text-red-600" />
+                            )}
                           </div>
-
-                          {/* Answer Comparison */}
-                          {question.questionType === "strokeOrder" ? (
+                          <div className="flex-1 space-y-3">
+                            <div>
+                              <div className="text-3xl font-medium text-gray-900 mb-2">
+                                {question.kanji}
+                              </div>
+                              <p className="text-sm text-gray-600">
+                                Nhớ nét vẽ kanji theo thứ tự đúng
+                              </p>
+                            </div>
                             <div>
                               <p className="text-sm text-gray-600 mb-1">
                                 Kết quả:
@@ -219,75 +237,100 @@ export function KanjiTestResult({
                                   : "✗ Chưa hoàn thành"}
                               </p>
                             </div>
-                          ) : (
-                            <div className="flex items-center gap-4">
-                              <div className="flex-1">
-                                <p className="text-sm text-gray-600 mb-1">
-                                  Đáp án đúng:
-                                </p>
-                                <p className="text-lg font-semibold text-green-700">
-                                  {question.correctAnswer}
-                                </p>
-                              </div>
-                              <div className="text-2xl text-gray-400">→</div>
-                              <div className="flex-1">
-                                <p className="text-sm text-gray-600 mb-1">
-                                  Bạn chọn:
-                                </p>
-                                <p
-                                  className={`text-lg font-semibold ${
-                                    isCorrect
-                                      ? "text-green-700"
-                                      : "text-red-700"
-                                  }`}
-                                >
-                                  {selectedAnswer || "Chưa trả lời"}
-                                </p>
-                              </div>
-                            </div>
-                          )}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  } else if (question.questionType === "multiReading") {
+                    const subMap = selectedAnswers.get(idx);
+                    return (
+                      <div key={`${idx}-multi`} className="space-y-3">
+                        {question.subQuestions?.map((subQ, subIdx) => {
+                          const selectedIndex = subMap?.get(subIdx);
+                          const isCorrect =
+                            selectedIndex !== undefined &&
+                            question.allOptions &&
+                            question.allOptions[subQ.rowIndex][
+                              selectedIndex
+                            ] === subQ.correctAnswer;
+                          const selectedAnswer =
+                            selectedIndex !== undefined && question.allOptions
+                              ? question.allOptions[subQ.rowIndex][
+                                  selectedIndex
+                                ]
+                              : null;
 
-                          {/* Additional Info */}
-                          {kanji && (
-                            <div className="pt-2 border-t border-gray-200">
-                              <div className="grid grid-cols-2 gap-4 text-sm">
-                                {kanji.meaningVi &&
-                                  kanji.meaningVi.length > 0 && (
-                                    <div>
-                                      <p className="text-gray-600 mb-1">
-                                        Nghĩa:
+                          const questionTypeLabel =
+                            subQ.type === "hanviet"
+                              ? "Hán Việt"
+                              : subQ.type === "meaning"
+                              ? "Nghĩa"
+                              : subQ.type === "onyomi"
+                              ? "On'yomi"
+                              : "Kun'yomi";
+
+                          return (
+                            <div
+                              key={`${idx}-${subIdx}`}
+                              className={`p-4 rounded-xl border-2 ${
+                                isCorrect
+                                  ? "border-green-300 bg-green-50"
+                                  : "border-red-300 bg-red-50"
+                              }`}
+                            >
+                              <div className="flex items-start gap-4">
+                                <div className="flex-shrink-0 mt-1">
+                                  {isCorrect ? (
+                                    <CheckCircle className="w-6 h-6 text-green-600" />
+                                  ) : (
+                                    <XCircle className="w-6 h-6 text-red-600" />
+                                  )}
+                                </div>
+                                <div className="flex-1 space-y-3">
+                                  <div>
+                                    <div className="text-3xl font-medium text-gray-900 mb-2">
+                                      {question.kanji}
+                                    </div>
+                                    <p className="text-sm text-gray-600">
+                                      {subQ.question} ({questionTypeLabel})
+                                    </p>
+                                  </div>
+                                  <div className="flex items-center gap-4">
+                                    <div className="flex-1">
+                                      <p className="text-sm text-gray-600 mb-1">
+                                        Đáp án đúng:
                                       </p>
-                                      <p className="font-medium text-gray-900">
-                                        {kanji.meaningVi.join(", ")}
+                                      <p className="text-lg font-semibold text-green-700">
+                                        {subQ.correctAnswer}
                                       </p>
                                     </div>
-                                  )}
-                                <div>
-                                  <p className="text-gray-600 mb-1">Đọc:</p>
-                                  <div className="space-y-1">
-                                    {kanji.onyomi &&
-                                      kanji.onyomi.length > 0 && (
-                                        <p className="font-medium text-gray-900">
-                                          On&apos;yomi:{" "}
-                                          {kanji.onyomi.join(", ")}
-                                        </p>
-                                      )}
-                                    {kanji.kunyomi &&
-                                      kanji.kunyomi.length > 0 && (
-                                        <p className="font-medium text-gray-900">
-                                          Kun&apos;yomi:{" "}
-                                          {kanji.kunyomi.join(", ")}
-                                        </p>
-                                      )}
+                                    <div className="text-2xl text-gray-400">
+                                      →
+                                    </div>
+                                    <div className="flex-1">
+                                      <p className="text-sm text-gray-600 mb-1">
+                                        Bạn chọn:
+                                      </p>
+                                      <p
+                                        className={`text-lg font-semibold ${
+                                          isCorrect
+                                            ? "text-green-700"
+                                            : "text-red-700"
+                                        }`}
+                                      >
+                                        {selectedAnswer || "Chưa trả lời"}
+                                      </p>
+                                    </div>
                                   </div>
                                 </div>
                               </div>
                             </div>
-                          )}
-                        </div>
+                          );
+                        })}
                       </div>
-                    </div>
-                  );
+                    );
+                  }
+                  return null;
                 })}
               </div>
             )}
@@ -302,7 +345,7 @@ export function KanjiTestResult({
                 <button
                   onClick={() => {
                     if (onTestComplete) {
-                      onTestComplete(correctAnswers, totalQuestions);
+                      onTestComplete(finalCorrectAnswers, finalTotalQuestions);
                     }
                     unlockNext();
                     onClose();
@@ -315,7 +358,7 @@ export function KanjiTestResult({
                 <button
                   onClick={() => {
                     if (onTestComplete) {
-                      onTestComplete(correctAnswers, totalQuestions);
+                      onTestComplete(finalCorrectAnswers, finalTotalQuestions);
                     }
                     unlockNext();
                     onClose();
@@ -330,7 +373,7 @@ export function KanjiTestResult({
                 <button
                   onClick={() => {
                     if (onTestComplete) {
-                      onTestComplete(correctAnswers, totalQuestions);
+                      onTestComplete(finalCorrectAnswers, finalTotalQuestions);
                     }
                     onClose();
                   }}
