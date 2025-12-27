@@ -147,9 +147,14 @@ export function LessonModal({ visible, onClose }: LessonModalProps) {
                 setVocabTestPassed(score === total);
               }}
               unlockNext={() => {
-                // Just unlock kanji, don't switch tab automatically
-                // User can manually switch to kanji tab if they want
-                // The unlock state is already handled by vocabTestPassed state
+                // Ensure vocabTestPassed is set to true to unlock kanji
+                // The unlock state is computed from vocabProgress >= 100 && vocabTestPassed
+                // onTestComplete already sets vocabTestPassed, but we ensure it here as well
+                // This ensures the unlock happens immediately when the callback is triggered
+                if (vocabProgress >= 100) {
+                  setVocabTestPassed(true);
+                }
+                // Don't switch tab automatically - user can manually switch to kanji tab
               }}
               nextLessonName="Kanji"
             />
@@ -162,8 +167,14 @@ export function LessonModal({ visible, onClose }: LessonModalProps) {
                   setKanjiTestPassed(score === total);
                 }}
                 unlockNext={() => {
-                  // Just unlock grammar, don't switch tab automatically
-                  // User can manually switch to grammar tab if they want
+                  // Ensure kanjiTestPassed is set to true to unlock grammar
+                  // The unlock state is computed from kanjiProgress >= 100 && kanjiTestPassed
+                  // onTestComplete already sets kanjiTestPassed, but we ensure it here as well
+                  // This ensures the unlock happens immediately when the callback is triggered
+                  if (kanjiProgress >= 100) {
+                    setKanjiTestPassed(true);
+                  }
+                  // Don't switch tab automatically - user can manually switch to grammar tab
                 }}
                 nextLessonName="Ngữ pháp"
               />

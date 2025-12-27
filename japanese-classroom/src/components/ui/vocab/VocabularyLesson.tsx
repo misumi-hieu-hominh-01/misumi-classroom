@@ -47,6 +47,7 @@ export function VocabularyLesson({
   );
   const [showTest, setShowTest] = useState(false);
   const [storedDateKey, setStoredDateKey] = useState<string | null>(null);
+  const [testPassed, setTestPassed] = useState(false);
 
   // Fetch daily state to get assigned vocab IDs
   const { data: dailyState, isLoading: isLoadingDailyState } = useQuery({
@@ -101,8 +102,10 @@ export function VocabularyLesson({
       const savedProgress = loadProgress("vocab", dateKey);
       if (savedProgress) {
         setCompletedIndices(new Set(savedProgress.completedIndices));
+        setTestPassed(savedProgress.testPassed || false);
       } else {
         setCompletedIndices(new Set());
+        setTestPassed(false);
       }
       setStoredDateKey(dateKey);
     }
@@ -161,6 +164,9 @@ export function VocabularyLesson({
   }
 
   function handleTestComplete(score: number, total: number) {
+    const isPerfect = score === total;
+    setTestPassed(isPerfect);
+    
     if (onTestComplete) {
       onTestComplete(score, total);
     }
@@ -170,7 +176,7 @@ export function VocabularyLesson({
       const checkedInDate = new Date(dailyState.checkedInAt);
       const dateKey = checkedInDate.toISOString().split("T")[0];
       saveProgress("vocab", dateKey, {
-        testPassed: score === total,
+        testPassed: isPerfect,
         testScore: score,
         testTotal: total,
       });
@@ -272,10 +278,12 @@ export function VocabularyLesson({
           <div className="p-4 border-t border-gray-200 space-y-3">
             <button
               onClick={handleStartTest}
-              disabled={completedCount < totalWords}
+              disabled={completedCount < totalWords || testPassed}
               className="w-full py-2 rounded-lg bg-blue-400 text-white text-sm font-semibold hover:bg-blue-500 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
             >
-              {completedCount < totalWords
+              {testPassed
+                ? "Đã hoàn thành 100%"
+                : completedCount < totalWords
                 ? "Hoàn thành tất cả để mở khóa bài kiểm tra"
                 : "Bắt đầu kiểm tra"}
             </button>

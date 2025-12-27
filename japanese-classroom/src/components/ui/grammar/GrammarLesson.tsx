@@ -41,6 +41,7 @@ export function GrammarLesson({
     new Set()
   );
   const [storedDateKey, setStoredDateKey] = useState<string | null>(null);
+  const [testPassed, setTestPassed] = useState(false);
 
   // Fetch daily state to get assigned grammar IDs
   const { data: dailyState, isLoading: isLoadingDailyState } = useQuery({
@@ -96,8 +97,10 @@ export function GrammarLesson({
       const savedProgress = loadProgress("grammar", dateKey);
       if (savedProgress) {
         setCompletedIndices(new Set(savedProgress.completedIndices));
+        setTestPassed(savedProgress.testPassed || false);
       } else {
         setCompletedIndices(new Set());
+        setTestPassed(false);
       }
       setStoredDateKey(dateKey);
     }
@@ -150,6 +153,27 @@ export function GrammarLesson({
   function handleStartTest() {
     // TODO: Implement test functionality
     console.log("Starting grammar test...");
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  function handleTestComplete(score: number, total: number) {
+    const isPerfect = score === total;
+    setTestPassed(isPerfect);
+
+    if (onTestComplete) {
+      onTestComplete(score, total);
+    }
+
+    // Save test result to localStorage
+    if (dailyState?.checkedInAt && storedDateKey) {
+      const checkedInDate = new Date(dailyState.checkedInAt);
+      const dateKey = checkedInDate.toISOString().split("T")[0];
+      saveProgress("grammar", dateKey, {
+        testPassed: isPerfect,
+        testScore: score,
+        testTotal: total,
+      });
+    }
   }
 
   if (isLoading) {
@@ -235,10 +259,12 @@ export function GrammarLesson({
         <div className="p-4 border-t border-gray-200 space-y-3">
           <button
             onClick={handleStartTest}
-            disabled={completedCount < totalGrammars}
+            disabled={completedCount < totalGrammars || testPassed}
             className="w-full py-2 rounded-lg bg-blue-400 text-white text-sm font-semibold hover:bg-blue-500 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
           >
-            {completedCount < totalGrammars
+            {testPassed
+              ? "Đã hoàn thành 100%"
+              : completedCount < totalGrammars
               ? "Hoàn thành tất cả để mở khóa bài kiểm tra"
               : "Bắt đầu kiểm tra"}
           </button>

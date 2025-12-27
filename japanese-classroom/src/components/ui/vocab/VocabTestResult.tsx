@@ -233,18 +233,6 @@ export function VocabTestResult({
                   <CheckCircle className="w-5 h-5" />
                   Mở khóa {nextLessonName}
                 </button>
-                <button
-                  onClick={() => {
-                    if (onTestComplete) {
-                      onTestComplete(correctAnswers, totalWords);
-                    }
-                    unlockNext();
-                    onClose();
-                  }}
-                  className="px-6 py-3 rounded-xl border-2 border-gray-300 text-gray-700 font-semibold hover:bg-gray-100 transition-colors"
-                >
-                  Đóng
-                </button>
               </>
             ) : (
               <>

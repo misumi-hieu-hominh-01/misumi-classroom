@@ -146,7 +146,7 @@ export function KanjiStrokeOrder({
       const container = svgContainerRef.current;
       container.innerHTML = svgContent;
       renderedSvgContentRef.current = svgContent;
-      
+
       // Immediately hide all text elements to prevent flash of numbers
       const svgElTemp = container.querySelector("svg");
       if (svgElTemp) {
