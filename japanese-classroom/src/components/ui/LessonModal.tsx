@@ -1,13 +1,13 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { X, Lock, Check, FileText } from "lucide-react";
+import { X, Lock, Check } from "lucide-react";
 import { VocabularyLesson } from "./vocab";
 import { KanjiLesson } from "./kanji";
 import { GrammarLesson } from "./grammar";
 import { useQuery } from "@tanstack/react-query";
 import { attendanceApi } from "@/api/attendance-api";
-import { loadProgress } from "@/utils/lesson-progress";
+import { loadProgress, saveProgress } from "@/utils/lesson-progress";
 
 interface LessonModalProps {
   visible: boolean;
@@ -24,6 +24,7 @@ export function LessonModal({ visible, onClose }: LessonModalProps) {
   const [kanjiTestPassed, setKanjiTestPassed] = useState(false);
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [grammarTestPassed, setGrammarTestPassed] = useState(false); // Will be used for future grammar unlock logic
+  const [storedDateKey, setStoredDateKey] = useState<string | null>(null);
 
   // Fetch daily state to get checkedInAt date
   const { data: dailyState } = useQuery({
@@ -31,28 +32,77 @@ export function LessonModal({ visible, onClose }: LessonModalProps) {
     queryFn: () => attendanceApi.getStatus(),
   });
 
-  // Load test results from localStorage when dailyState is available
+  // Load test results and progress from localStorage when dailyState is available
   useEffect(() => {
     if (!dailyState?.checkedInAt) return;
 
     const checkedInDate = new Date(dailyState.checkedInAt);
     const dateKey = checkedInDate.toISOString().split("T")[0];
 
-    const vocabProgress = loadProgress("vocab", dateKey);
-    if (vocabProgress) {
-      setVocabTestPassed(vocabProgress.testPassed || false);
+    // If dateKey changed, reset and load new progress
+    if (storedDateKey !== dateKey) {
+      setStoredDateKey(dateKey);
     }
 
-    const kanjiProgress = loadProgress("kanji", dateKey);
-    if (kanjiProgress) {
-      setKanjiTestPassed(kanjiProgress.testPassed || false);
+    // Load vocab progress and test status
+    const vocabProgressData = loadProgress("vocab", dateKey);
+    if (vocabProgressData) {
+      setVocabTestPassed(vocabProgressData.testPassed || false);
+      // Calculate progress from completedIndices
+      if (vocabProgressData.completedIndices) {
+        // Progress will be updated by VocabularyLesson's onProgressChange
+        // But we can calculate it here if needed
+      }
+    } else {
+      setVocabTestPassed(false);
     }
 
-    const grammarProgress = loadProgress("grammar", dateKey);
-    if (grammarProgress) {
-      setGrammarTestPassed(grammarProgress.testPassed || false);
+    // Load kanji progress and test status
+    const kanjiProgressData = loadProgress("kanji", dateKey);
+    if (kanjiProgressData) {
+      setKanjiTestPassed(kanjiProgressData.testPassed || false);
+    } else {
+      setKanjiTestPassed(false);
     }
-  }, [dailyState?.checkedInAt]);
+
+    // Load grammar progress and test status
+    const grammarProgressData = loadProgress("grammar", dateKey);
+    if (grammarProgressData) {
+      setGrammarTestPassed(grammarProgressData.testPassed || false);
+    } else {
+      setGrammarTestPassed(false);
+    }
+  }, [dailyState?.checkedInAt, storedDateKey]);
+
+  // Save vocabTestPassed to localStorage when it changes
+  useEffect(() => {
+    if (!dailyState?.checkedInAt || !storedDateKey) return;
+
+    const checkedInDate = new Date(dailyState.checkedInAt);
+    const dateKey = checkedInDate.toISOString().split("T")[0];
+
+    if (storedDateKey === dateKey) {
+      // saveProgress already merges with existing progress
+      saveProgress("vocab", dateKey, {
+        testPassed: vocabTestPassed,
+      });
+    }
+  }, [vocabTestPassed, dailyState?.checkedInAt, storedDateKey]);
+
+  // Save kanjiTestPassed to localStorage when it changes
+  useEffect(() => {
+    if (!dailyState?.checkedInAt || !storedDateKey) return;
+
+    const checkedInDate = new Date(dailyState.checkedInAt);
+    const dateKey = checkedInDate.toISOString().split("T")[0];
+
+    if (storedDateKey === dateKey) {
+      // saveProgress already merges with existing progress
+      saveProgress("kanji", dateKey, {
+        testPassed: kanjiTestPassed,
+      });
+    }
+  }, [kanjiTestPassed, dailyState?.checkedInAt, storedDateKey]);
 
   // Unlock kanji when vocab is 100% complete AND test is 100% correct
   const isKanjiUnlocked = vocabProgress >= 100 && vocabTestPassed;
@@ -133,7 +183,6 @@ export function LessonModal({ visible, onClose }: LessonModalProps) {
             }`}
           >
             Grammar
-            {isGrammarUnlocked && <FileText className="w-4 h-4" />}
             {!isGrammarUnlocked && <Lock className="w-4 h-4" />}
           </button>
         </div>
@@ -144,7 +193,19 @@ export function LessonModal({ visible, onClose }: LessonModalProps) {
             <VocabularyLesson
               onProgressChange={setVocabProgress}
               onTestComplete={(score, total) => {
-                setVocabTestPassed(score === total);
+                const isPerfect = score === total;
+                setVocabTestPassed(isPerfect);
+                // Save to localStorage (also saved by VocabularyLesson, but ensure sync)
+                if (dailyState?.checkedInAt) {
+                  const checkedInDate = new Date(dailyState.checkedInAt);
+                  const dateKey = checkedInDate.toISOString().split("T")[0];
+                  // saveProgress already merges with existing progress
+                  saveProgress("vocab", dateKey, {
+                    testPassed: isPerfect,
+                    testScore: score,
+                    testTotal: total,
+                  });
+                }
               }}
               unlockNext={() => {
                 // Ensure vocabTestPassed is set to true to unlock kanji
@@ -153,6 +214,15 @@ export function LessonModal({ visible, onClose }: LessonModalProps) {
                 // This ensures the unlock happens immediately when the callback is triggered
                 if (vocabProgress >= 100) {
                   setVocabTestPassed(true);
+                  // Save to localStorage
+                  if (dailyState?.checkedInAt) {
+                    const checkedInDate = new Date(dailyState.checkedInAt);
+                    const dateKey = checkedInDate.toISOString().split("T")[0];
+                    // saveProgress already merges with existing progress
+                    saveProgress("vocab", dateKey, {
+                      testPassed: true,
+                    });
+                  }
                 }
                 // Don't switch tab automatically - user can manually switch to kanji tab
               }}
@@ -164,7 +234,19 @@ export function LessonModal({ visible, onClose }: LessonModalProps) {
               <KanjiLesson
                 onProgressChange={setKanjiProgress}
                 onTestComplete={(score, total) => {
-                  setKanjiTestPassed(score === total);
+                  const isPerfect = score === total;
+                  setKanjiTestPassed(isPerfect);
+                  // Save to localStorage (also saved by KanjiLesson, but ensure sync)
+                  if (dailyState?.checkedInAt) {
+                    const checkedInDate = new Date(dailyState.checkedInAt);
+                    const dateKey = checkedInDate.toISOString().split("T")[0];
+                    // saveProgress already merges with existing progress
+                    saveProgress("kanji", dateKey, {
+                      testPassed: isPerfect,
+                      testScore: score,
+                      testTotal: total,
+                    });
+                  }
                 }}
                 unlockNext={() => {
                   // Ensure kanjiTestPassed is set to true to unlock grammar
@@ -173,10 +255,19 @@ export function LessonModal({ visible, onClose }: LessonModalProps) {
                   // This ensures the unlock happens immediately when the callback is triggered
                   if (kanjiProgress >= 100) {
                     setKanjiTestPassed(true);
+                    // Save to localStorage
+                    if (dailyState?.checkedInAt) {
+                      const checkedInDate = new Date(dailyState.checkedInAt);
+                      const dateKey = checkedInDate.toISOString().split("T")[0];
+                      // saveProgress already merges with existing progress
+                      saveProgress("kanji", dateKey, {
+                        testPassed: true,
+                      });
+                    }
                   }
                   // Don't switch tab automatically - user can manually switch to grammar tab
                 }}
-                nextLessonName="Ngữ pháp"
+                nextLessonName="Grammar"
               />
             ) : (
               <div className="flex items-center justify-center h-full text-gray-400">

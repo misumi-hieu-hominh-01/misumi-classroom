@@ -1,8 +1,8 @@
 "use client";
 
-import { ReactNode } from "react";
 import { GrammarPoint } from "@/api/content-api";
 import { FileText } from "lucide-react";
+import { parseHtmlWithRuby } from "@/utils/html-parser";
 
 interface GrammarDisplayProps {
   grammar: GrammarPoint;
@@ -19,94 +19,6 @@ const rubyStyles = `
   }
 `;
 
-/**
- * Parse HTML string with ruby tags and render as React elements
- * Handles <ruby>, <rb>, <rt>, <rp>, and <br/> tags
- */
-function parseHtmlWithRuby(html: string): ReactNode[] {
-  const nodes: ReactNode[] = [];
-  let key = 0;
-  let pos = 0;
-
-  // Find all ruby tags and other HTML tags
-  const rubyRegex = /<ruby>([\s\S]*?)<\/ruby>/g;
-  const brRegex = /<br\s*\/?>/gi;
-
-  // Collect all matches with positions
-  const matches: Array<{
-    type: "ruby" | "br" | "text";
-    start: number;
-    end: number;
-    content?: string;
-  }> = [];
-
-  let match;
-
-  // Find ruby tags
-  while ((match = rubyRegex.exec(html)) !== null) {
-    matches.push({
-      type: "ruby",
-      start: match.index,
-      end: match.index + match[0].length,
-      content: match[1],
-    });
-  }
-
-  // Find br tags
-  rubyRegex.lastIndex = 0; // Reset
-  while ((match = brRegex.exec(html)) !== null) {
-    matches.push({
-      type: "br",
-      start: match.index,
-      end: match.index + match[0].length,
-    });
-  }
-
-  // Sort by position
-  matches.sort((a, b) => a.start - b.start);
-
-  // Process matches
-  for (const m of matches) {
-    // Add text before match
-    if (m.start > pos) {
-      const text = html.slice(pos, m.start);
-      if (text) {
-        nodes.push(<span key={`text-${key++}`}>{text}</span>);
-      }
-    }
-
-    // Process match
-    if (m.type === "ruby" && m.content) {
-      // Parse ruby content - ignore <rp> tags
-      const rbMatch = m.content.match(/<rb>([\s\S]*?)<\/rb>/);
-      const rtMatch = m.content.match(/<rt>([\s\S]*?)<\/rt>/);
-
-      if (rbMatch && rtMatch) {
-        nodes.push(
-          <ruby key={`ruby-${key++}`}>
-            {rbMatch[1]}
-            <rt>{rtMatch[1]}</rt>
-          </ruby>
-        );
-      }
-    } else if (m.type === "br") {
-      nodes.push(<br key={`br-${key++}`} />);
-    }
-
-    pos = m.end;
-  }
-
-  // Add remaining text
-  if (pos < html.length) {
-    const text = html.slice(pos);
-    if (text) {
-      nodes.push(<span key={`text-${key++}`}>{text}</span>);
-    }
-  }
-
-  return nodes.length > 0 ? nodes : [html];
-}
-
 export function GrammarDisplay({ grammar }: GrammarDisplayProps) {
   return (
     <>
@@ -116,7 +28,7 @@ export function GrammarDisplay({ grammar }: GrammarDisplayProps) {
         <div className="space-y-2">
           <h1 className="text-4xl font-bold text-gray-900">{grammar.title}</h1>
           {grammar.pattern && (
-            <div className="text-xl text-gray-600 font-mono bg-gray-100 px-4 py-2 rounded-lg inline-block">
+            <div className="text-xl text-gray-600 bg-gray-100 px-4 py-2 rounded-lg inline-block">
               {parseHtmlWithRuby(grammar.pattern)}
             </div>
           )}

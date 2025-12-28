@@ -232,7 +232,7 @@ export function GrammarLesson({
           <div className="space-y-1.5">
             <div className="flex items-center justify-between text-xs">
               <span className="text-gray-600">
-                Tiến độ: {completedCount}/{totalGrammars} điểm ngữ pháp đã học
+                Tiến độ: {completedCount}/{totalGrammars} ngữ pháp đã học
               </span>
               <span className="font-semibold text-gray-900">
                 {Math.round(progress)}%
