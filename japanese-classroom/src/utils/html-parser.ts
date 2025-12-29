@@ -3,92 +3,57 @@ import React, { ReactNode } from "react";
 /**
  * Parse HTML string with ruby tags and render as React elements
  * Handles <ruby>, <rb>, <rt>, <rp>, and <br/> tags
+ * Also handles newlines (\n) and normalizes <br> tags to <br/>
  *
  * @param html - HTML string containing ruby tags
  * @returns Array of ReactNode elements
  */
 export function parseHtmlWithRuby(html: string): ReactNode[] {
-  const nodes: ReactNode[] = [];
+  if (!html) return [];
+
+  // 1. CHUẨN HÓA VÀ DỌN DẸP
+  const normalized = html
+    // Xóa bỏ các ký tự xuống dòng (văn bản thuần \n hoặc ký tự xuống dòng thực tế)
+    .replace(/\\n|\n/g, "")
+    // Xóa bỏ các thẻ đóng lỗi </br>
+    .replace(/<\/br>/gi, "")
+    // Chuẩn hóa tất cả các dạng <br>, <br > thành <br/> để làm mốc split
+    .replace(/<br\s*\/?>/gi, "<br/>");
+
+  // 2. TÁCH MẢNG (GIỮ LẠI THẺ TRONG MẢNG)
+  // Regex này sẽ bắt chính xác <ruby>...</ruby> hoặc <br/>
+  const parts = normalized.split(/(<ruby>[\s\S]*?<\/ruby>|<br\s*\/?>)/gi);
+
   let key = 0;
-  let pos = 0;
+  return parts
+    .map((part) => {
+      if (!part || part.trim() === "") return null; // Loại bỏ các khoảng trắng thừa sau khi xóa \n
 
-  // Find all ruby tags and other HTML tags
-  const rubyRegex = /<ruby>([\s\S]*?)<\/ruby>/g;
-  const brRegex = /<br\s*\/?>/gi;
+      // Xử lý thẻ Ruby
+      if (part.startsWith("<ruby>")) {
+        const rbMatch = part.match(/<rb>([\s\S]*?)<\/rb>/i);
+        const rtMatch = part.match(/<rt>([\s\S]*?)<\/rt>/i);
 
-  // Collect all matches with positions
-  const matches: Array<{
-    type: "ruby" | "br" | "text";
-    start: number;
-    end: number;
-    content?: string;
-  }> = [];
+        const rbContent = rbMatch
+          ? rbMatch[1]
+          : part.replace(/<ruby>|<rt>[\s\S]*?<\/rt>|<\/ruby>/gi, "").trim();
+        const rtContent = rtMatch ? rtMatch[1] : "";
 
-  let match;
-
-  // Find ruby tags
-  while ((match = rubyRegex.exec(html)) !== null) {
-    matches.push({
-      type: "ruby",
-      start: match.index,
-      end: match.index + match[0].length,
-      content: match[1],
-    });
-  }
-
-  // Find br tags
-  rubyRegex.lastIndex = 0; // Reset
-  while ((match = brRegex.exec(html)) !== null) {
-    matches.push({
-      type: "br",
-      start: match.index,
-      end: match.index + match[0].length,
-    });
-  }
-
-  // Sort by position
-  matches.sort((a, b) => a.start - b.start);
-
-  // Process matches
-  for (const m of matches) {
-    // Add text before match
-    if (m.start > pos) {
-      const text = html.slice(pos, m.start);
-      if (text) {
-        nodes.push(React.createElement("span", { key: `text-${key++}` }, text));
-      }
-    }
-
-    // Process match
-    if (m.type === "ruby" && m.content) {
-      // Parse ruby content - ignore <rp> tags
-      const rbMatch = m.content.match(/<rb>([\s\S]*?)<\/rb>/);
-      const rtMatch = m.content.match(/<rt>([\s\S]*?)<\/rt>/);
-
-      if (rbMatch && rtMatch) {
-        nodes.push(
-          React.createElement(
-            "ruby",
-            { key: `ruby-${key++}` },
-            rbMatch[1],
-            React.createElement("rt", null, rtMatch[1])
-          )
+        return React.createElement(
+          "ruby",
+          { key: `ruby-${key++}` },
+          rbContent,
+          React.createElement("rt", null, rtContent)
         );
       }
-    } else if (m.type === "br") {
-      nodes.push(React.createElement("br", { key: `br-${key++}` }));
-    }
 
-    pos = m.end;
-  }
+      // Xử lý thẻ BR (Chỉ giữ lại những thẻ đã được chuẩn hóa thành <br/>)
+      if (part.toLowerCase() === "<br/>") {
+        return React.createElement("br", { key: `br-${key++}` });
+      }
 
-  // Add remaining text
-  if (pos < html.length) {
-    const text = html.slice(pos);
-    if (text) {
-      nodes.push(React.createElement("span", { key: `text-${key++}` }, text));
-    }
-  }
-
-  return nodes.length > 0 ? nodes : [html];
+      // Xử lý Text thường
+      return React.createElement("span", { key: `text-${key++}` }, part);
+    })
+    .filter(Boolean);
 }

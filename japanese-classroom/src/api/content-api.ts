@@ -67,6 +67,7 @@ export interface GrammarPoint {
     content: string;
     transcription: string;
     mean: string;
+    segments?: string[];
   }>;
   version: number;
   updatedAt?: string;
@@ -130,6 +131,7 @@ export interface CreateGrammarPointDto {
     content: string;
     transcription: string;
     mean: string;
+    segments?: string[];
   }>;
 }
 

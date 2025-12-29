@@ -19,6 +19,11 @@ class ExampleDto {
   @IsString()
   @IsNotEmpty()
   mean: string;
+
+  @IsArray()
+  @IsString({ each: true })
+  @IsOptional()
+  segments?: string[];
 }
 
 export class CreateGrammarPointDto {

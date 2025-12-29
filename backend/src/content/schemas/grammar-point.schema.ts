@@ -25,6 +25,7 @@ export class GrammarPoint {
     content: string;
     transcription: string;
     mean: string;
+    segments?: string[];
   }>;
 
   @Prop({ default: 1 })

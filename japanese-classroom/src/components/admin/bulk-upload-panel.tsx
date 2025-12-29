@@ -473,6 +473,7 @@ export function BulkUploadPanel({
         content: string;
         transcription: string;
         mean: string;
+        segments?: string[];
       }[]
     | undefined => {
     if (value == null) return undefined;
@@ -486,6 +487,7 @@ export function BulkUploadPanel({
             content: ex.content || "",
             transcription: ex.transcription || "",
             mean: ex.mean || "",
+            segments: Array.isArray(ex.segments) ? ex.segments : undefined,
           }));
         }
       } catch {
