@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { GrammarList } from "./GrammarList";
 import { GrammarDisplay } from "./GrammarDisplay";
+import { GrammarTest } from "./GrammarTest";
 import { useQuery } from "@tanstack/react-query";
 import { contentApi, GrammarPoint } from "@/api/content-api";
 import { attendanceApi } from "@/api/attendance-api";
@@ -30,16 +31,19 @@ async function fetchGrammarPointsByIds(ids: string[]): Promise<GrammarPoint[]> {
 interface GrammarLessonProps {
   onProgressChange?: (progress: number) => void;
   onTestComplete?: (score: number, total: number) => void;
+  unlockNext?: () => void;
 }
 
 export function GrammarLesson({
   onProgressChange,
   onTestComplete,
+  unlockNext,
 }: GrammarLessonProps = {}) {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [completedIndices, setCompletedIndices] = useState<Set<number>>(
     new Set()
   );
+  const [showTest, setShowTest] = useState(false);
   const [storedDateKey, setStoredDateKey] = useState<string | null>(null);
   const [testPassed, setTestPassed] = useState(false);
 
@@ -127,12 +131,12 @@ export function GrammarLesson({
     }
   }, [currentIndex, totalGrammars]);
 
-  // Notify parent of progress changes
+  // Notify parent of progress changes (only after progress is loaded)
   useEffect(() => {
-    if (onProgressChange) {
+    if (onProgressChange && storedDateKey && !isLoading) {
       onProgressChange(progress);
     }
-  }, [progress, onProgressChange]);
+  }, [progress, onProgressChange, storedDateKey, isLoading]);
 
   function handlePrevious() {
     if (currentIndex > 0) {
@@ -151,11 +155,13 @@ export function GrammarLesson({
   }
 
   function handleStartTest() {
-    // TODO: Implement test functionality
-    console.log("Starting grammar test...");
+    setShowTest(true);
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  function handleCloseTest() {
+    setShowTest(false);
+  }
+
   function handleTestComplete(score: number, total: number) {
     const isPerfect = score === total;
     setTestPassed(isPerfect);
@@ -221,92 +227,103 @@ export function GrammarLesson({
   }
 
   return (
-    <div className="flex h-full">
-      {/* Left Side - Grammar List */}
-      <div className="w-2/5 border-r border-gray-200 bg-gray-50 flex flex-col">
-        <div className="p-4 border-b border-gray-200 space-y-2">
-          <h3 className="text-base font-semibold text-gray-900">
-            Danh sách ngữ pháp
-          </h3>
-          {/* Progress Bar */}
-          <div className="space-y-1.5">
-            <div className="flex items-center justify-between text-xs">
-              <span className="text-gray-600">
-                Tiến độ: {completedCount}/{totalGrammars} ngữ pháp đã học
-              </span>
-              <span className="font-semibold text-gray-900">
-                {Math.round(progress)}%
-              </span>
-            </div>
-            <div className="h-1.5 bg-gray-200 rounded-full overflow-hidden">
-              <div
-                className="h-full bg-blue-500 transition-all duration-300"
-                style={{ width: `${progress}%` }}
-              />
+    <>
+      {showTest && (
+        <GrammarTest
+          grammarPoints={grammarPointsList}
+          onClose={handleCloseTest}
+          onTestComplete={handleTestComplete}
+          unlockNext={unlockNext}
+        />
+      )}
+
+      <div className="flex h-full">
+        {/* Left Side - Grammar List */}
+        <div className="w-2/5 border-r border-gray-200 bg-gray-50 flex flex-col">
+          <div className="p-4 border-b border-gray-200 space-y-2">
+            <h3 className="text-base font-semibold text-gray-900">
+              Danh sách ngữ pháp
+            </h3>
+            {/* Progress Bar */}
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-gray-600">
+                  Tiến độ: {completedCount}/{totalGrammars} ngữ pháp đã học
+                </span>
+                <span className="font-semibold text-gray-900">
+                  {Math.round(progress)}%
+                </span>
+              </div>
+              <div className="h-1.5 bg-gray-200 rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-blue-500 transition-all duration-300"
+                  style={{ width: `${progress}%` }}
+                />
+              </div>
             </div>
           </div>
-        </div>
 
-        <div className="flex-1 overflow-y-auto p-3">
-          <GrammarList
-            grammarPoints={grammarPointsList}
-            currentIndex={currentIndex}
-            completedIndices={completedIndices}
-            onGrammarSelect={handleGrammarSelect}
-          />
-        </div>
+          <div className="flex-1 overflow-y-auto p-3">
+            <GrammarList
+              grammarPoints={grammarPointsList}
+              currentIndex={currentIndex}
+              completedIndices={completedIndices}
+              onGrammarSelect={handleGrammarSelect}
+            />
+          </div>
 
-        <div className="p-4 border-t border-gray-200 space-y-3">
-          <button
-            onClick={handleStartTest}
-            disabled={completedCount < totalGrammars || testPassed}
-            className="w-full py-2 rounded-lg bg-blue-400 text-white text-sm font-semibold hover:bg-blue-500 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
-          >
-            {testPassed
-              ? "Đã hoàn thành 100%"
-              : completedCount < totalGrammars
-              ? "Hoàn thành tất cả để mở khóa bài kiểm tra"
-              : "Bắt đầu kiểm tra"}
-          </button>
-        </div>
-      </div>
-
-      {/* Right Side - Grammar Display */}
-      <div className="w-3/5 flex flex-col">
-        <div className="flex-1 overflow-y-auto p-6">
-          {currentGrammar ? (
-            <GrammarDisplay grammar={currentGrammar} />
-          ) : (
-            <div className="flex items-center justify-center h-full text-gray-400">
-              <p>Chọn một điểm ngữ pháp để xem chi tiết</p>
-            </div>
-          )}
-        </div>
-
-        {/* Navigation and Actions */}
-        <div className="border-t border-gray-200 p-4 space-y-3">
-          {/* Navigation Buttons */}
-          <div className="flex items-center justify-between gap-3">
+          <div className="p-4 border-t border-gray-200 space-y-3">
             <button
-              onClick={handlePrevious}
-              disabled={currentIndex === 0}
-              className="px-4 py-2 rounded-lg border-2 border-gray-300 text-gray-700 text-sm font-medium hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
+              onClick={handleStartTest}
+              disabled={completedCount < totalGrammars || testPassed}
+              className="w-full py-2 rounded-lg bg-blue-400 text-white text-sm font-semibold hover:bg-blue-500 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
             >
-              <ChevronLeft className="w-4 h-4" />
-              Trước
-            </button>
-
-            <button
-              onClick={handleNext}
-              disabled={currentIndex === totalGrammars - 1}
-              className="px-4 py-2 rounded-lg bg-blue-500 text-white text-sm font-medium hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
-            >
-              Tiếp theo
-              <ChevronRight className="w-4 h-4" />
+              {testPassed
+                ? "Đã hoàn thành 100%"
+                : completedCount < totalGrammars
+                ? "Hoàn thành tất cả để mở khóa bài kiểm tra"
+                : "Bắt đầu kiểm tra"}
             </button>
           </div>
         </div>
+
+        {/* Right Side - Grammar Display */}
+        <div className="w-3/5 flex flex-col">
+          <div className="flex-1 overflow-y-auto p-6">
+            {currentGrammar ? (
+              <GrammarDisplay grammar={currentGrammar} />
+            ) : (
+              <div className="flex items-center justify-center h-full text-gray-400">
+                <p>Chọn một điểm ngữ pháp để xem chi tiết</p>
+              </div>
+            )}
+          </div>
+
+          {/* Navigation and Actions */}
+          <div className="border-t border-gray-200 p-4 space-y-3">
+            {/* Navigation Buttons */}
+            <div className="flex items-center justify-between gap-3">
+              <button
+                onClick={handlePrevious}
+                disabled={currentIndex === 0}
+                className="px-4 py-2 rounded-lg border-2 border-gray-300 text-gray-700 text-sm font-medium hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
+              >
+                <ChevronLeft className="w-4 h-4" />
+                Trước
+              </button>
+
+              <button
+                onClick={handleNext}
+                disabled={currentIndex === totalGrammars - 1}
+                className="px-4 py-2 rounded-lg bg-blue-500 text-white text-sm font-medium hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
+              >
+                Tiếp theo
+                <ChevronRight className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+        </div>
       </div>
-    </div>
+    </>
   );
 }

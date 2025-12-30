@@ -85,7 +85,7 @@ export function ContentTable<T extends { _id: string }>({
                   {onEdit && (
                     <button
                       onClick={() => onEdit(row)}
-                      className="text-blue-600 hover:text-blue-800 font-medium"
+                      className="text-blue-600 hover:text-blue-800 font-medium cursor-pointer"
                     >
                       Sửa
                     </button>
@@ -94,7 +94,7 @@ export function ContentTable<T extends { _id: string }>({
                     <button
                       onClick={() => handleDelete(row._id)}
                       disabled={deletingId === row._id}
-                      className="text-red-600 hover:text-red-800 font-medium disabled:opacity-50"
+                      className="text-red-600 hover:text-red-800 font-medium disabled:opacity-50 cursor-pointer"
                     >
                       {deletingId === row._id ? "Đang xóa..." : "Xóa"}
                     </button>
@@ -108,7 +108,3 @@ export function ContentTable<T extends { _id: string }>({
     </div>
   );
 }
-
-
-
-

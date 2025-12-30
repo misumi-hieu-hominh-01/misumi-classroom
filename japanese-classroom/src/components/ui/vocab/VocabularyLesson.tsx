@@ -132,12 +132,12 @@ export function VocabularyLesson({
     }
   }, [currentIndex, totalWords]);
 
-  // Notify parent of progress changes
+  // Notify parent of progress changes (only after progress is loaded)
   useEffect(() => {
-    if (onProgressChange) {
+    if (onProgressChange && storedDateKey && !isLoading) {
       onProgressChange(progress);
     }
-  }, [progress, onProgressChange]);
+  }, [progress, onProgressChange, storedDateKey, isLoading]);
 
   function handlePrevious() {
     if (currentIndex > 0) {

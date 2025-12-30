@@ -857,7 +857,7 @@ export function BulkUploadPanel({
           type="button"
           onClick={onCancel}
           disabled={isUploading}
-          className="px-4 py-2 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          className="px-4 py-2 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors cursor-pointer"
         >
           Hủy
         </button>
@@ -872,7 +872,7 @@ export function BulkUploadPanel({
               return !!result.error || result.rows.length === 0;
             })()
           }
-          className="px-4 py-2 rounded-lg bg-[#D4C4B0] text-[#5C4A37] font-medium hover:bg-[#C9B8A3] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          className="px-4 py-2 rounded-lg bg-[#D4C4B0] text-[#5C4A37] font-medium hover:bg-[#C9B8A3] disabled:opacity-50 disabled:cursor-not-allowed transition-colors cursor-pointer"
         >
           {isUploading
             ? "Đang upload..."

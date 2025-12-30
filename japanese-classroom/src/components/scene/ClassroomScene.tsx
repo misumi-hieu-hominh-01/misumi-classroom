@@ -2,7 +2,7 @@
 
 import { Canvas } from "@react-three/fiber";
 import { OrbitControls, useGLTF, Environment } from "@react-three/drei";
-import { Suspense, useState, useEffect, useCallback } from "react";
+import { Suspense, useState, useEffect, useCallback, useRef } from "react";
 import { Vector3 } from "three";
 import StickMan, { Teacher } from "../character";
 import { ThirdPersonCamera, FirstPersonCamera } from "../camera";
@@ -19,6 +19,10 @@ import {
   LessonModal,
 } from "../ui";
 import { useRouter } from "next/navigation";
+import { useQuery } from "@tanstack/react-query";
+import { attendanceApi } from "@/api/attendance-api";
+import { loadProgress } from "@/utils/lesson-progress";
+import Confetti from "react-confetti";
 
 interface ClassroomModelProps {
   position?: [number, number, number];
@@ -78,6 +82,137 @@ export default function ClassroomScene({
   const [showExitConfirm, setShowExitConfirm] = useState(false);
   const [hasShownExitConfirm, setHasShownExitConfirm] = useState(false);
   const [stickmanKey, setStickmanKey] = useState(0); // Key to force re-render StickMan
+
+  // Fetch daily state to check lesson completion
+  const { data: dailyState } = useQuery({
+    queryKey: ["daily-state"],
+    queryFn: () => attendanceApi.getStatus(),
+  });
+
+  // Check if all lessons are completed
+  const [isAllLessonsCompleted, setIsAllLessonsCompleted] = useState(false);
+  const [lessonStats, setLessonStats] = useState<{
+    vocabCount: number;
+    kanjiCount: number;
+    grammarCount: number;
+  }>({ vocabCount: 0, kanjiCount: 0, grammarCount: 0 });
+
+  // Confetti state
+  const [showConfetti, setShowConfetti] = useState(false);
+  const completionCardRef = useRef<HTMLDivElement>(null);
+  const [cardDimensions, setCardDimensions] = useState({
+    width: 0,
+    height: 0,
+  });
+  const [hasShownConfettiForThisSession, setHasShownConfettiForThisSession] =
+    useState(false);
+
+  useEffect(() => {
+    if (!dailyState?.checkedInAt) {
+      setIsAllLessonsCompleted(false);
+      return;
+    }
+
+    const checkedInDate = new Date(dailyState.checkedInAt);
+    const dateKey = checkedInDate.toISOString().split("T")[0];
+
+    // Load progress for all lessons
+    const vocabProgress = loadProgress("vocab", dateKey);
+    const kanjiProgress = loadProgress("kanji", dateKey);
+    const grammarProgress = loadProgress("grammar", dateKey);
+
+    // Get total counts
+    const vocabCount = dailyState.assigned.vocabIds?.length || 0;
+    const kanjiCount = dailyState.assigned.kanjiIds?.length || 0;
+    const grammarCount = dailyState.assigned.grammarIds?.length || 0;
+
+    // Calculate progress for each lesson (completedIndices.length / total * 100)
+    const vocabProgressPercent =
+      vocabCount > 0 && vocabProgress?.completedIndices
+        ? (vocabProgress.completedIndices.length / vocabCount) * 100
+        : 0;
+    const kanjiProgressPercent =
+      kanjiCount > 0 && kanjiProgress?.completedIndices
+        ? (kanjiProgress.completedIndices.length / kanjiCount) * 100
+        : 0;
+    const grammarProgressPercent =
+      grammarCount > 0 && grammarProgress?.completedIndices
+        ? (grammarProgress.completedIndices.length / grammarCount) * 100
+        : 0;
+
+    // Check if all lessons are completed (progress >= 100% and test passed)
+    const vocabCompleted =
+      vocabCount > 0 &&
+      vocabProgressPercent >= 100 &&
+      vocabProgress?.testPassed === true;
+    const kanjiCompleted =
+      kanjiCount > 0 &&
+      kanjiProgressPercent >= 100 &&
+      kanjiProgress?.testPassed === true;
+    const grammarCompleted =
+      grammarCount > 0 &&
+      grammarProgressPercent >= 100 &&
+      grammarProgress?.testPassed === true;
+
+    // All lessons are completed if:
+    // - All assigned lessons have progress >= 100% and test passed
+    // - At least one lesson type has items assigned
+    const hasAnyLessons = vocabCount > 0 || kanjiCount > 0 || grammarCount > 0;
+    const allCompleted =
+      hasAnyLessons &&
+      (vocabCount === 0 || vocabCompleted) &&
+      (kanjiCount === 0 || kanjiCompleted) &&
+      (grammarCount === 0 || grammarCompleted);
+
+    setIsAllLessonsCompleted(allCompleted);
+
+    // Set lesson stats
+    setLessonStats({
+      vocabCount,
+      kanjiCount,
+      grammarCount,
+    });
+  }, [dailyState, isAllLessonsCompleted]);
+
+  // Get card dimensions and trigger confetti when card appears
+  useEffect(() => {
+    const updateCardDimensions = () => {
+      if (completionCardRef.current) {
+        const rect = completionCardRef.current.getBoundingClientRect();
+        setCardDimensions({
+          width: rect.width,
+          height: rect.height,
+        });
+      }
+    };
+
+    if (isSitting && isAllLessonsCompleted && completionCardRef.current) {
+      // Update dimensions
+      updateCardDimensions();
+
+      // Trigger confetti when card first appears (when sitting down)
+      if (!hasShownConfettiForThisSession) {
+        // Small delay to ensure card is rendered
+        setTimeout(() => {
+          setShowConfetti(true);
+          setHasShownConfettiForThisSession(true);
+
+          // Hide confetti after 5 seconds
+          setTimeout(() => {
+            setShowConfetti(false);
+          }, 5000);
+        }, 100);
+      }
+
+      // Update on resize
+      window.addEventListener("resize", updateCardDimensions);
+      return () => window.removeEventListener("resize", updateCardDimensions);
+    } else if (!isSitting) {
+      // Reset confetti state when standing up
+      setHasShownConfettiForThisSession(false);
+      setShowConfetti(false);
+    }
+  }, [isSitting, isAllLessonsCompleted, hasShownConfettiForThisSession]);
 
   // Cycle camera modes
   const cycleCameraMode = useCallback(() => {
@@ -421,7 +556,7 @@ export default function ClassroomScene({
       </Canvas>
 
       {/* Time Display - Top Left */}
-      <div className="absolute top-4 left-4 z-10">
+      <div className="absolute top-4 left-4 z-[60]">
         <TimeDisplay />
       </div>
 
@@ -494,14 +629,115 @@ export default function ClassroomScene({
             </div>
           </div>
 
-          {/* Start Lesson Button */}
+          {/* Lesson Button or Completion Message */}
           <div className="fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-30">
-            <button
-              onClick={() => setShowLessonModal(true)}
-              className="px-8 py-4 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white text-lg font-semibold rounded-xl shadow-2xl transition-all transform hover:scale-105"
-            >
-              🎓 Bắt đầu bài học hôm nay
-            </button>
+            {isAllLessonsCompleted ? (
+              <div
+                ref={completionCardRef}
+                className="bg-gradient-to-br from-yellow-50 via-orange-50 to-pink-50 rounded-3xl shadow-2xl p-8 max-w-lg text-center relative overflow-hidden"
+              >
+                {/* Confetti Effect - Only inside this div */}
+                {showConfetti && cardDimensions.width > 0 && (
+                  <Confetti
+                    width={cardDimensions.width}
+                    height={cardDimensions.height}
+                    recycle={false}
+                    numberOfPieces={200}
+                    gravity={0.3}
+                    initialVelocityY={15}
+                    colors={[
+                      "#FF6B6B",
+                      "#4ECDC4",
+                      "#45B7D1",
+                      "#96CEB4",
+                      "#FFEAA7",
+                      "#DDA0DD",
+                      "#98D8C8",
+                      "#F7DC6F",
+                      "#BB8FCE",
+                      "#85C1E9",
+                    ]}
+                    style={{
+                      position: "absolute",
+                      top: 0,
+                      left: 0,
+                      zIndex: 10,
+                      pointerEvents: "none",
+                    }}
+                  />
+                )}
+
+                {/* Confetti background pattern */}
+                <div className="absolute inset-0 opacity-20 z-0">
+                  <div className="absolute top-4 left-8 w-3 h-3 bg-blue-400 rounded transform rotate-45"></div>
+                  <div className="absolute top-12 right-12 w-2 h-4 bg-red-400 rounded"></div>
+                  <div className="absolute top-20 left-16 w-4 h-2 bg-yellow-400 rounded"></div>
+                  <div className="absolute bottom-16 right-8 w-3 h-3 bg-green-400 rounded transform rotate-45"></div>
+                  <div className="absolute bottom-8 left-12 w-2 h-4 bg-purple-400 rounded"></div>
+                  <div className="absolute top-6 right-20 w-4 h-2 bg-pink-400 rounded"></div>
+                </div>
+
+                {/* Party horn icon */}
+                <div className="text-7xl mb-4 relative z-10">🎉</div>
+
+                <h3 className="text-3xl font-bold text-gray-800 mb-6 relative z-10">
+                  Đã hoàn thành bài học
+                  <br />
+                  hôm nay!
+                </h3>
+
+                {/* Lesson stats cards */}
+                <div className="grid grid-cols-3 gap-3 mb-8 relative z-10">
+                  {lessonStats.vocabCount > 0 && (
+                    <div className="bg-blue-100 rounded-2xl p-4 text-center">
+                      <div className="text-3xl mb-2">📚</div>
+                      <div className="text-sm font-medium text-gray-700 mb-1">
+                        TỪ VỰNG:
+                      </div>
+                      <div className="text-xl font-bold text-blue-600">
+                        {lessonStats.vocabCount} từ
+                      </div>
+                    </div>
+                  )}
+                  {lessonStats.kanjiCount > 0 && (
+                    <div className="bg-green-100 rounded-2xl p-4 text-center">
+                      <div className="text-3xl mb-2">✍️</div>
+                      <div className="text-sm font-medium text-gray-700 mb-1">
+                        KANJI:
+                      </div>
+                      <div className="text-xl font-bold text-green-600">
+                        {lessonStats.kanjiCount} từ
+                      </div>
+                    </div>
+                  )}
+                  {lessonStats.grammarCount > 0 && (
+                    <div className="bg-purple-100 rounded-2xl p-4 text-center">
+                      <div className="text-3xl mb-2">📖</div>
+                      <div className="text-sm font-medium text-gray-700 mb-1">
+                        NGỮ PHÁP:
+                      </div>
+                      <div className="text-xl font-bold text-purple-600">
+                        {lessonStats.grammarCount} mẫu
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                <button
+                  onClick={() => setShowLessonModal(true)}
+                  className="w-full px-8 py-4 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white text-lg font-semibold rounded-2xl shadow-lg transition-all transform hover:scale-105 flex items-center justify-center gap-2 relative z-10 cursor-pointer"
+                >
+                  📖 Xem lại bài học
+                </button>
+              </div>
+            ) : (
+              <button
+                onClick={() => setShowLessonModal(true)}
+                className="px-8 py-4 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white text-lg font-semibold rounded-xl shadow-2xl transition-all transform hover:scale-105 cursor-pointer"
+              >
+                🎓 Bắt đầu bài học hôm nay
+              </button>
+            )}
           </div>
         </>
       )}

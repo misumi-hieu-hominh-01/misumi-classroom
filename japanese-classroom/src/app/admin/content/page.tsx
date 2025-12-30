@@ -32,7 +32,7 @@ export default function ContentManagementPage() {
                 <nav className="flex space-x-4">
                   <button
                     onClick={() => setActiveTab("vocab")}
-                    className={`px-4 py-2 font-medium transition-colors ${
+                    className={`px-4 py-2 font-medium transition-colors cursor-pointer ${
                       activeTab === "vocab"
                         ? "text-[#5C4A37] border-b-2 border-[#5C4A37]"
                         : "text-gray-600 hover:text-[#5C4A37]"
@@ -42,7 +42,7 @@ export default function ContentManagementPage() {
                   </button>
                   <button
                     onClick={() => setActiveTab("kanji")}
-                    className={`px-4 py-2 font-medium transition-colors ${
+                    className={`px-4 py-2 font-medium transition-colors cursor-pointer ${
                       activeTab === "kanji"
                         ? "text-[#5C4A37] border-b-2 border-[#5C4A37]"
                         : "text-gray-600 hover:text-[#5C4A37]"
@@ -52,7 +52,7 @@ export default function ContentManagementPage() {
                   </button>
                   <button
                     onClick={() => setActiveTab("grammar")}
-                    className={`px-4 py-2 font-medium transition-colors ${
+                    className={`px-4 py-2 font-medium transition-colors cursor-pointer ${
                       activeTab === "grammar"
                         ? "text-[#5C4A37] border-b-2 border-[#5C4A37]"
                         : "text-gray-600 hover:text-[#5C4A37]"

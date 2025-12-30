@@ -25,7 +25,7 @@ export default function AdminPage() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <button
                 onClick={() => router.push("/admin/content")}
-                className="bg-white rounded-lg shadow-lg p-6 hover:shadow-xl transition-shadow text-left group"
+                className="bg-white rounded-lg shadow-lg p-6 hover:shadow-xl transition-shadow text-left group cursor-pointer"
               >
                 <div className="text-4xl mb-4">📚</div>
                 <h2 className="text-xl font-bold text-[#5C4A37] mb-2 group-hover:text-[#8B7355] transition-colors">
@@ -38,7 +38,7 @@ export default function AdminPage() {
 
               <button
                 onClick={() => router.push("/admin/users")}
-                className="bg-white rounded-lg shadow-lg p-6 hover:shadow-xl transition-shadow text-left group"
+                className="bg-white rounded-lg shadow-lg p-6 hover:shadow-xl transition-shadow text-left group cursor-pointer"
               >
                 <div className="text-4xl mb-4">👥</div>
                 <h2 className="text-xl font-bold text-[#5C4A37] mb-2 group-hover:text-[#8B7355] transition-colors">
@@ -51,7 +51,7 @@ export default function AdminPage() {
 
               <button
                 onClick={() => router.push("/admin/settings")}
-                className="bg-white rounded-lg shadow-lg p-6 hover:shadow-xl transition-shadow text-left group"
+                className="bg-white rounded-lg shadow-lg p-6 hover:shadow-xl transition-shadow text-left group cursor-pointer"
               >
                 <div className="text-4xl mb-4">⚙️</div>
                 <h2 className="text-xl font-bold text-[#5C4A37] mb-2 group-hover:text-[#8B7355] transition-colors">

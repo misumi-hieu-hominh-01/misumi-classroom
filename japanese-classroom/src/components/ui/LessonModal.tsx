@@ -8,6 +8,7 @@ import { GrammarLesson } from "./grammar";
 import { useQuery } from "@tanstack/react-query";
 import { attendanceApi } from "@/api/attendance-api";
 import { loadProgress, saveProgress } from "@/utils/lesson-progress";
+import { toast } from "sonner";
 
 interface LessonModalProps {
   visible: boolean;
@@ -20,10 +21,10 @@ export function LessonModal({ visible, onClose }: LessonModalProps) {
   const [activeTab, setActiveTab] = useState<LessonTab>("vocabulary");
   const [vocabProgress, setVocabProgress] = useState(0);
   const [kanjiProgress, setKanjiProgress] = useState(0);
+  const [grammarProgress, setGrammarProgress] = useState(0);
   const [vocabTestPassed, setVocabTestPassed] = useState(false);
   const [kanjiTestPassed, setKanjiTestPassed] = useState(false);
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const [grammarTestPassed, setGrammarTestPassed] = useState(false); // Will be used for future grammar unlock logic
+  const [grammarTestPassed, setGrammarTestPassed] = useState(false);
   const [storedDateKey, setStoredDateKey] = useState<string | null>(null);
 
   // Fetch daily state to get checkedInAt date
@@ -49,30 +50,55 @@ export function LessonModal({ visible, onClose }: LessonModalProps) {
     if (vocabProgressData) {
       setVocabTestPassed(vocabProgressData.testPassed || false);
       // Calculate progress from completedIndices
-      if (vocabProgressData.completedIndices) {
-        // Progress will be updated by VocabularyLesson's onProgressChange
-        // But we can calculate it here if needed
+      const vocabCount = dailyState.assigned.vocabIds?.length || 0;
+      if (vocabProgressData.completedIndices && vocabCount > 0) {
+        const vocabProgressPercent =
+          (vocabProgressData.completedIndices.length / vocabCount) * 100;
+        setVocabProgress(vocabProgressPercent);
+      } else {
+        setVocabProgress(0);
       }
     } else {
       setVocabTestPassed(false);
+      setVocabProgress(0);
     }
 
     // Load kanji progress and test status
     const kanjiProgressData = loadProgress("kanji", dateKey);
     if (kanjiProgressData) {
       setKanjiTestPassed(kanjiProgressData.testPassed || false);
+      // Calculate progress from completedIndices
+      const kanjiCount = dailyState.assigned.kanjiIds?.length || 0;
+      if (kanjiProgressData.completedIndices && kanjiCount > 0) {
+        const kanjiProgressPercent =
+          (kanjiProgressData.completedIndices.length / kanjiCount) * 100;
+        setKanjiProgress(kanjiProgressPercent);
+      } else {
+        setKanjiProgress(0);
+      }
     } else {
       setKanjiTestPassed(false);
+      setKanjiProgress(0);
     }
 
     // Load grammar progress and test status
     const grammarProgressData = loadProgress("grammar", dateKey);
     if (grammarProgressData) {
       setGrammarTestPassed(grammarProgressData.testPassed || false);
+      // Calculate progress from completedIndices
+      const grammarCount = dailyState.assigned.grammarIds?.length || 0;
+      if (grammarProgressData.completedIndices && grammarCount > 0) {
+        const grammarProgressPercent =
+          (grammarProgressData.completedIndices.length / grammarCount) * 100;
+        setGrammarProgress(grammarProgressPercent);
+      } else {
+        setGrammarProgress(0);
+      }
     } else {
       setGrammarTestPassed(false);
+      setGrammarProgress(0);
     }
-  }, [dailyState?.checkedInAt, storedDateKey]);
+  }, [dailyState?.checkedInAt, dailyState?.assigned, storedDateKey]);
 
   // Save vocabTestPassed to localStorage when it changes
   useEffect(() => {
@@ -109,6 +135,10 @@ export function LessonModal({ visible, onClose }: LessonModalProps) {
   // Unlock grammar when kanji is 100% complete AND test is 100% correct
   const isGrammarUnlocked = kanjiProgress >= 100 && kanjiTestPassed;
 
+  // grammarTestPassed is used in the grammar lesson component and saved to localStorage
+  // It will be used for future unlock logic when we add more lessons
+  console.log("Grammar test passed:", grammarTestPassed);
+
   if (!visible) return null;
 
   return (
@@ -123,7 +153,7 @@ export function LessonModal({ visible, onClose }: LessonModalProps) {
           </h2>
           <button
             onClick={onClose}
-            className="p-2 rounded-lg hover:bg-gray-100 transition-colors"
+            className="p-2 rounded-lg hover:bg-gray-100 transition-colors cursor-pointer"
           >
             <X className="w-5 h-5 text-gray-600" />
           </button>
@@ -133,7 +163,7 @@ export function LessonModal({ visible, onClose }: LessonModalProps) {
         <div className="flex items-center gap-2 px-6 py-3 bg-gray-50 border-b border-gray-200">
           <button
             onClick={() => setActiveTab("vocabulary")}
-            className={`px-6 py-3 rounded-lg font-medium transition-colors flex items-center gap-2 ${
+            className={`px-6 py-3 rounded-lg font-medium transition-colors flex items-center gap-2 cursor-pointer ${
               activeTab === "vocabulary"
                 ? "bg-blue-500 text-white"
                 : "bg-white text-gray-700 hover:bg-gray-100"
@@ -152,7 +182,7 @@ export function LessonModal({ visible, onClose }: LessonModalProps) {
                 ? "Hoàn thành từ vựng và bài test để mở khóa"
                 : ""
             }
-            className={`px-6 py-3 rounded-lg font-medium transition-colors flex items-center gap-2 ${
+            className={`px-6 py-3 rounded-lg font-medium transition-colors flex items-center gap-2 cursor-pointer ${
               isKanjiUnlocked
                 ? activeTab === "kanji"
                   ? "bg-blue-500 text-white"
@@ -174,7 +204,7 @@ export function LessonModal({ visible, onClose }: LessonModalProps) {
                 ? "Hoàn thành kanji và bài test để mở khóa"
                 : ""
             }
-            className={`px-6 py-3 rounded-lg font-medium transition-colors flex items-center gap-2 ${
+            className={`px-6 py-3 rounded-lg font-medium transition-colors flex items-center gap-2 cursor-pointer ${
               isGrammarUnlocked
                 ? activeTab === "grammar"
                   ? "bg-blue-500 text-white"
@@ -183,6 +213,11 @@ export function LessonModal({ visible, onClose }: LessonModalProps) {
             }`}
           >
             Grammar
+            {isGrammarUnlocked &&
+              grammarProgress >= 100 &&
+              grammarTestPassed && (
+                <Check className="w-4 h-4 text-green-500 bg-white rounded-full" />
+              )}
             {!isGrammarUnlocked && <Lock className="w-4 h-4" />}
           </button>
         </div>
@@ -295,8 +330,56 @@ export function LessonModal({ visible, onClose }: LessonModalProps) {
           {activeTab === "grammar" &&
             (isGrammarUnlocked ? (
               <GrammarLesson
+                onProgressChange={setGrammarProgress}
                 onTestComplete={(score, total) => {
-                  setGrammarTestPassed(score === total);
+                  const isPerfect = score === total;
+                  setGrammarTestPassed(isPerfect);
+                  // Save to localStorage (also saved by GrammarLesson, but ensure sync)
+                  if (dailyState?.checkedInAt) {
+                    const checkedInDate = new Date(dailyState.checkedInAt);
+                    const dateKey = checkedInDate.toISOString().split("T")[0];
+                    // saveProgress already merges with existing progress
+                    saveProgress("grammar", dateKey, {
+                      testPassed: isPerfect,
+                      testScore: score,
+                      testTotal: total,
+                    });
+                  }
+
+                  // Show notification if all lessons completed 100%
+                  if (
+                    isPerfect &&
+                    vocabProgress >= 100 &&
+                    vocabTestPassed &&
+                    kanjiProgress >= 100 &&
+                    kanjiTestPassed &&
+                    grammarProgress >= 100
+                  ) {
+                    toast.success("🎉 Hoàn thành bài học hôm nay!", {
+                      description:
+                        "Bạn đã hoàn thành tất cả bài học với điểm số tuyệt đối!",
+                      duration: 5000,
+                      position: "bottom-right",
+                    });
+                  }
+                }}
+                unlockNext={() => {
+                  // Ensure grammarTestPassed is set to true
+                  // The unlock state is computed from grammarProgress >= 100 && grammarTestPassed
+                  // onTestComplete already sets grammarTestPassed, but we ensure it here as well
+                  // This ensures the unlock happens immediately when the callback is triggered
+                  if (grammarProgress >= 100) {
+                    setGrammarTestPassed(true);
+                    // Save to localStorage
+                    if (dailyState?.checkedInAt) {
+                      const checkedInDate = new Date(dailyState.checkedInAt);
+                      const dateKey = checkedInDate.toISOString().split("T")[0];
+                      // saveProgress already merges with existing progress
+                      saveProgress("grammar", dateKey, {
+                        testPassed: true,
+                      });
+                    }
+                  }
                 }}
               />
             ) : (

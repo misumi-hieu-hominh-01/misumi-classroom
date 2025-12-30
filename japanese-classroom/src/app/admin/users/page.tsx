@@ -186,7 +186,7 @@ export default function UsersManagementPage() {
                                 <button
                                   onClick={() => handleSave(user.id)}
                                   disabled={saving}
-                                  className="inline-flex items-center gap-1 px-3 py-1 bg-green-600 text-white rounded hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                  className="inline-flex items-center gap-1 px-3 py-1 bg-green-600 text-white rounded hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
                                 >
                                   <Save size={14} />
                                   {saving ? "Đang lưu..." : "Lưu"}
@@ -194,7 +194,7 @@ export default function UsersManagementPage() {
                                 <button
                                   onClick={handleCancelEdit}
                                   disabled={saving}
-                                  className="inline-flex items-center gap-1 px-3 py-1 bg-gray-600 text-white rounded hover:bg-gray-700 transition-colors disabled:opacity-50"
+                                  className="inline-flex items-center gap-1 px-3 py-1 bg-gray-600 text-white rounded hover:bg-gray-700 transition-colors disabled:opacity-50 cursor-pointer"
                                 >
                                   <X size={14} />
                                   Hủy
@@ -203,7 +203,7 @@ export default function UsersManagementPage() {
                             ) : (
                               <button
                                 onClick={() => handleEditClick(user)}
-                                className="text-blue-600 hover:text-blue-800 font-medium"
+                                className="text-blue-600 hover:text-blue-800 font-medium cursor-pointer"
                               >
                                 Đặt ngày bắt đầu
                               </button>

@@ -79,7 +79,7 @@ export function AdminGuard({ children }: AdminGuardProps) {
           </p>
           <button
             onClick={() => router.push("/")}
-            className="px-6 py-3 rounded-lg bg-[#D4C4B0] text-[#5C4A37] font-medium hover:bg-[#C9B8A3] transition-colors"
+            className="px-6 py-3 rounded-lg bg-[#D4C4B0] text-[#5C4A37] font-medium hover:bg-[#C9B8A3] transition-colors cursor-pointer"
           >
             Về trang chủ
           </button>
@@ -104,7 +104,7 @@ export function AdminGuard({ children }: AdminGuardProps) {
           </p>
           <button
             onClick={() => router.push("/")}
-            className="px-6 py-3 rounded-lg bg-[#D4C4B0] text-[#5C4A37] font-medium hover:bg-[#C9B8A3] transition-colors"
+            className="px-6 py-3 rounded-lg bg-[#D4C4B0] text-[#5C4A37] font-medium hover:bg-[#C9B8A3] transition-colors cursor-pointer"
           >
             Về trang chủ
           </button>

@@ -203,7 +203,7 @@ export function ContentTab({ type }: ContentTabProps) {
         </div>
         <button
           onClick={() => setShowBulkUpload(true)}
-          className="px-4 py-2 rounded-lg bg-[#D4C4B0] text-[#5C4A37] font-medium hover:bg-[#C9B8A3] transition-colors whitespace-nowrap"
+          className="px-4 py-2 rounded-lg bg-[#D4C4B0] text-[#5C4A37] font-medium hover:bg-[#C9B8A3] transition-colors whitespace-nowrap cursor-pointer"
         >
           Upload hàng loạt
         </button>
@@ -234,14 +234,14 @@ export function ContentTab({ type }: ContentTabProps) {
             <button
               onClick={() => setPage((p) => Math.max(1, p - 1))}
               disabled={page === 1}
-              className="px-3 py-1 border border-gray-300 rounded disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
+              className="px-3 py-1 border border-gray-300 rounded disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50 cursor-pointer"
             >
               Trước
             </button>
             <button
               onClick={() => setPage((p) => p + 1)}
               disabled={page * ITEMS_PER_PAGE >= total}
-              className="px-3 py-1 border border-gray-300 rounded disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
+              className="px-3 py-1 border border-gray-300 rounded disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50 cursor-pointer"
             >
               Sau
             </button>
