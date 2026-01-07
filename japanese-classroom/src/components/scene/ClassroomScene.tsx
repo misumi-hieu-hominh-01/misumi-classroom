@@ -21,8 +21,15 @@ import {
 import { useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { attendanceApi } from "@/api/attendance-api";
+import { assignmentsApi } from "@/api/assignments-api";
 import { loadProgress } from "@/utils/lesson-progress";
 import Confetti from "react-confetti";
+import {
+  MultiplayerProvider,
+  useMultiplayer,
+} from "@/contexts/MultiplayerContext";
+import { MultiplayerPlayers } from "../multiplayer/MultiplayerPlayers";
+import { MultiplayerControls } from "../multiplayer/MultiplayerControls";
 
 interface ClassroomModelProps {
   position?: [number, number, number];
@@ -42,10 +49,9 @@ interface ClassroomSceneProps {
   onExitClassroom?: () => void;
 }
 
-export default function ClassroomScene({
-  onExitClassroom,
-}: ClassroomSceneProps) {
+function ClassroomSceneContent({ onExitClassroom }: ClassroomSceneProps) {
   const router = useRouter();
+  const { updatePlayerPosition, currentRoom } = useMultiplayer();
   const [stickmanPosition, setStickmanPosition] = useState(
     new Vector3(-3.0, -1.2, 1.2)
   );
@@ -88,6 +94,66 @@ export default function ClassroomScene({
     queryKey: ["daily-state"],
     queryFn: () => attendanceApi.getStatus(),
   });
+
+  // Fetch assignments status
+  const { data: dailyReviewStatus } = useQuery({
+    queryKey: ["daily-review-status"],
+    queryFn: () => assignmentsApi.getDailyReviewStatus(),
+    retry: false,
+  });
+
+  const { data: weeklyStatus } = useQuery({
+    queryKey: ["weekly-status"],
+    queryFn: () => assignmentsApi.getWeeklyStatus(),
+    retry: false,
+  });
+
+  const { data: monthlyStatus } = useQuery({
+    queryKey: ["monthly-status"],
+    queryFn: () => assignmentsApi.getMonthlyStatus(),
+    retry: false,
+  });
+
+  // Helper function to get day of week (0 = Sunday, 1 = Monday, ..., 6 = Saturday)
+  const getDayOfWeek = (): number => {
+    return new Date().getDay();
+  };
+
+  // Check if today is a learning day (Monday-Saturday, T2-T7)
+  const isLearningDay = (): boolean => {
+    const day = getDayOfWeek();
+    return day >= 1 && day <= 6;
+  };
+
+  // Check if today is Sunday
+  const isSunday = (): boolean => {
+    return getDayOfWeek() === 0;
+  };
+
+  // Check if today is Monday (no daily review)
+  const isMonday = (): boolean => {
+    return getDayOfWeek() === 1;
+  };
+
+  // Check if today is Tuesday-Sunday (has daily review)
+  const hasDailyReview = (): boolean => {
+    return !isMonday() && isLearningDay();
+  };
+
+  // Check if today is Sunday and not week 4 (has weekly test)
+  const hasWeeklyTest = (): boolean => {
+    if (!isSunday()) return false;
+    // If monthly status exists and has data, it's week 4, so no weekly test
+    // If weekly status exists and has data, it's not week 4, so has weekly test
+    return weeklyStatus !== null && weeklyStatus !== undefined;
+  };
+
+  // Check if today is Sunday week 4 (has monthly test)
+  const hasMonthlyTest = (): boolean => {
+    if (!isSunday()) return false;
+    // If monthly status exists and has data, it's week 4
+    return monthlyStatus !== null && monthlyStatus !== undefined;
+  };
 
   // Check if all lessons are completed
   const [isAllLessonsCompleted, setIsAllLessonsCompleted] = useState(false);
@@ -231,6 +297,15 @@ export default function ClassroomScene({
     setStickmanPosition(position.clone());
     setStickmanRotation(rotation);
     setIsStickmanMoving(isMoving);
+
+    // Send position to multiplayer server if connected
+    if (currentRoom) {
+      updatePlayerPosition(
+        { x: position.x, y: position.y, z: position.z },
+        { x: 0, y: rotation, z: 0 },
+        isMoving
+      );
+    }
   };
 
   // Check for nearby interactable seats and teacher, and exit condition
@@ -552,13 +627,19 @@ export default function ClassroomScene({
               maxDistance={50}
             />
           )}
+
+          {/* Multiplayer Players */}
+          <MultiplayerPlayers />
         </Suspense>
       </Canvas>
 
       {/* Time Display - Top Left */}
-      <div className="absolute top-4 left-4 z-[60]">
+      <div className="absolute top-4 left-4 z-[50]">
         <TimeDisplay />
       </div>
+
+      {/* Multiplayer Controls - Bottom Right (self-positioned) */}
+      <MultiplayerControls />
 
       {/* Notification System */}
       <NotificationSystem
@@ -723,25 +804,182 @@ export default function ClassroomScene({
                   )}
                 </div>
 
-                <button
-                  onClick={() => setShowLessonModal(true)}
-                  className="w-full px-8 py-4 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white text-lg font-semibold rounded-2xl shadow-lg transition-all transform hover:scale-105 flex items-center justify-center gap-2 relative z-10 cursor-pointer"
-                >
-                  📖 Xem lại bài học
-                </button>
+                <div className="space-y-3 relative z-10">
+                  <button
+                    onClick={() => setShowLessonModal(true)}
+                    className="w-full px-8 py-4 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white text-lg font-semibold rounded-2xl shadow-lg transition-all transform hover:scale-105 flex items-center justify-center gap-2 cursor-pointer"
+                  >
+                    📖 Xem lại bài học
+                  </button>
+
+                  {/* Daily Review Button (T3-CN) - Show in completion card too */}
+                  {hasDailyReview() && dailyReviewStatus && (
+                    <button
+                      onClick={() => {
+                        // TODO: Open daily review modal/test
+                        console.log("Open daily review");
+                      }}
+                      className="w-full px-8 py-4 bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white text-lg font-semibold rounded-2xl shadow-lg transition-all transform hover:scale-105 cursor-pointer"
+                    >
+                      📝 Ôn bài hôm qua
+                      {dailyReviewStatus.pools.vocabIds.length > 0 ||
+                      dailyReviewStatus.pools.kanjiIds.length > 0 ||
+                      dailyReviewStatus.pools.grammarIds.length > 0 ? (
+                        <span className="ml-2 text-sm opacity-90">
+                          (
+                          {dailyReviewStatus.pools.vocabIds.length +
+                            dailyReviewStatus.pools.kanjiIds.length +
+                            dailyReviewStatus.pools.grammarIds.length}{" "}
+                          bài)
+                        </span>
+                      ) : null}
+                    </button>
+                  )}
+
+                  {/* Weekly Test Button (Chủ nhật, trừ tuần thứ 4) - Show in completion card too */}
+                  {hasWeeklyTest() && weeklyStatus && (
+                    <button
+                      onClick={() => {
+                        // TODO: Open weekly test modal
+                        console.log("Open weekly test");
+                      }}
+                      className="w-full px-8 py-4 bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white text-lg font-semibold rounded-2xl shadow-lg transition-all transform hover:scale-105 cursor-pointer"
+                    >
+                      📅 Test tuần
+                      {weeklyStatus.pools.vocabIds.length > 0 ||
+                      weeklyStatus.pools.kanjiIds.length > 0 ||
+                      weeklyStatus.pools.grammarIds.length > 0 ? (
+                        <span className="ml-2 text-sm opacity-90">
+                          (
+                          {weeklyStatus.pools.vocabIds.length +
+                            weeklyStatus.pools.kanjiIds.length +
+                            weeklyStatus.pools.grammarIds.length}{" "}
+                          bài)
+                        </span>
+                      ) : null}
+                    </button>
+                  )}
+
+                  {/* Monthly Test Button (Chủ nhật tuần thứ 4) - Show in completion card too */}
+                  {hasMonthlyTest() && monthlyStatus && (
+                    <button
+                      onClick={() => {
+                        // TODO: Open monthly test modal
+                        console.log("Open monthly test");
+                      }}
+                      className="w-full px-8 py-4 bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700 text-white text-lg font-semibold rounded-2xl shadow-lg transition-all transform hover:scale-105 cursor-pointer"
+                    >
+                      🗓️ Test tháng
+                      {monthlyStatus.pools.vocabIds.length > 0 ||
+                      monthlyStatus.pools.kanjiIds.length > 0 ||
+                      monthlyStatus.pools.grammarIds.length > 0 ? (
+                        <span className="ml-2 text-sm opacity-90">
+                          (
+                          {monthlyStatus.pools.vocabIds.length +
+                            monthlyStatus.pools.kanjiIds.length +
+                            monthlyStatus.pools.grammarIds.length}{" "}
+                          bài)
+                        </span>
+                      ) : null}
+                    </button>
+                  )}
+                </div>
               </div>
             ) : (
-              <button
-                onClick={() => setShowLessonModal(true)}
-                className="px-8 py-4 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white text-lg font-semibold rounded-xl shadow-2xl transition-all transform hover:scale-105 cursor-pointer"
-              >
-                🎓 Bắt đầu bài học hôm nay
-              </button>
+              <div className="space-y-3">
+                <button
+                  onClick={() => setShowLessonModal(true)}
+                  className="w-full px-8 py-4 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white text-lg font-semibold rounded-xl shadow-2xl transition-all transform hover:scale-105 cursor-pointer"
+                >
+                  🎓 Bắt đầu bài học hôm nay
+                </button>
+
+                {/* Daily Review Button (T3-CN) */}
+                {hasDailyReview() && dailyReviewStatus && (
+                  <button
+                    onClick={() => {
+                      // TODO: Open daily review modal/test
+                      console.log("Open daily review");
+                    }}
+                    className="w-full px-8 py-4 bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white text-lg font-semibold rounded-xl shadow-xl transition-all transform hover:scale-105 cursor-pointer"
+                  >
+                    📝 Ôn bài hôm qua
+                    {dailyReviewStatus.pools.vocabIds.length > 0 ||
+                    dailyReviewStatus.pools.kanjiIds.length > 0 ||
+                    dailyReviewStatus.pools.grammarIds.length > 0 ? (
+                      <span className="ml-2 text-sm opacity-90">
+                        (
+                        {dailyReviewStatus.pools.vocabIds.length +
+                          dailyReviewStatus.pools.kanjiIds.length +
+                          dailyReviewStatus.pools.grammarIds.length}{" "}
+                        bài)
+                      </span>
+                    ) : null}
+                  </button>
+                )}
+
+                {/* Weekly Test Button (Chủ nhật, trừ tuần thứ 4) */}
+                {hasWeeklyTest() && weeklyStatus && (
+                  <button
+                    onClick={() => {
+                      // TODO: Open weekly test modal
+                      console.log("Open weekly test");
+                    }}
+                    className="w-full px-8 py-4 bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white text-lg font-semibold rounded-xl shadow-xl transition-all transform hover:scale-105 cursor-pointer"
+                  >
+                    📅 Test tuần
+                    {weeklyStatus.pools.vocabIds.length > 0 ||
+                    weeklyStatus.pools.kanjiIds.length > 0 ||
+                    weeklyStatus.pools.grammarIds.length > 0 ? (
+                      <span className="ml-2 text-sm opacity-90">
+                        (
+                        {weeklyStatus.pools.vocabIds.length +
+                          weeklyStatus.pools.kanjiIds.length +
+                          weeklyStatus.pools.grammarIds.length}{" "}
+                        bài)
+                      </span>
+                    ) : null}
+                  </button>
+                )}
+
+                {/* Monthly Test Button (Chủ nhật tuần thứ 4) */}
+                {hasMonthlyTest() && monthlyStatus && (
+                  <button
+                    onClick={() => {
+                      // TODO: Open monthly test modal
+                      console.log("Open monthly test");
+                    }}
+                    className="w-full px-8 py-4 bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700 text-white text-lg font-semibold rounded-xl shadow-xl transition-all transform hover:scale-105 cursor-pointer"
+                  >
+                    🗓️ Test tháng
+                    {monthlyStatus.pools.vocabIds.length > 0 ||
+                    monthlyStatus.pools.kanjiIds.length > 0 ||
+                    monthlyStatus.pools.grammarIds.length > 0 ? (
+                      <span className="ml-2 text-sm opacity-90">
+                        (
+                        {monthlyStatus.pools.vocabIds.length +
+                          monthlyStatus.pools.kanjiIds.length +
+                          monthlyStatus.pools.grammarIds.length}{" "}
+                        bài)
+                      </span>
+                    ) : null}
+                  </button>
+                )}
+              </div>
             )}
           </div>
         </>
       )}
     </div>
+  );
+}
+
+// Main component with MultiplayerProvider
+export default function ClassroomScene(props: ClassroomSceneProps) {
+  return (
+    <MultiplayerProvider serverUrl="http://localhost:5001">
+      <ClassroomSceneContent {...props} />
+    </MultiplayerProvider>
   );
 }
 

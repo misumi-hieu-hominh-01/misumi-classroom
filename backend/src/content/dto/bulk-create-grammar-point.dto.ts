@@ -8,6 +8,3 @@ export class BulkCreateGrammarPointDto {
   @Type(() => CreateGrammarPointDto)
   items: CreateGrammarPointDto[];
 }
-
-
-

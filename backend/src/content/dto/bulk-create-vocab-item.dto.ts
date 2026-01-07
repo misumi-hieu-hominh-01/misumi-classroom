@@ -8,6 +8,3 @@ export class BulkCreateVocabItemDto {
   @Type(() => CreateVocabItemDto)
   items: CreateVocabItemDto[];
 }
-
-
-

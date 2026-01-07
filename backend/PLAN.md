@@ -46,6 +46,7 @@
 ### 1.3. Bài giao tuần/ôn tập — `user_assignments_*`
 
 - `user_assignments_weekly` — gói bài tuần (đóng gói từ nội dung đã học tuần): `{ userId, period(YYYY-W##), generatedAt, pools{...}, limits{...}, used{...}, status }`
+- `user_assignments_monthly` — gói bài tháng (đóng gói từ nội dung đã học tháng): `{ userId, period(YYYY-MM), generatedAt, pools{...}, limits{...}, used{...}, status }`
 - `user_assignments_daily_review` — gói ôn hôm qua: `{ userId, dateKey(today), sourceDateKey(yesterday), generatedAt, pools{...}, limits{...}, used{...}, status }`
 - `user_custom_tests` — gói ôn custom: `{ userId, title, sources[{type, assignmenId, module},{...}], settings{totalQuestions, perModule, createdAt, lastUsedAt}}`
 
@@ -67,6 +68,7 @@
 - `user_daily_state`: unique `{ userId:1, dateKey:1 }`
 - `leaderboard_rollups`: `{ period:1, score:-1 }`
 - `user_assignments_weekly`: unique `{ userId:1, period:1 }`
+- `user_assignments_monthly`: unique `{ userId:1, period:1 }`
 - `user_assignments_daily_review`: unique `{ userId:1, dateKey:1 }`
 
 > Lưu ý: Index tính vào quota 500MB. Chỉ tạo khi có truy vấn thực.
@@ -75,47 +77,88 @@
 
 ## 3) Thuật toán & luồng nghiệp vụ chính
 
+### 3.0. Lịch phân phối bài học và test (Tổng quan)
+
+**Lịch tuần (JST - Asia/Tokyo):**
+
+- **Thứ 2 (Monday)**: Điểm danh + Bài học mới (vocab/kanji/grammar) - Không có test ôn bài
+- **Thứ 3 (Tuesday)**: Điểm danh + Bài học mới + Test ôn bài hôm qua
+- **Thứ 4 (Wednesday)**: Điểm danh + Bài học mới + Test ôn bài hôm qua
+- **Thứ 5 (Thursday)**: Điểm danh + Bài học mới + Test ôn bài hôm qua
+- **Thứ 6 (Friday)**: Điểm danh + Bài học mới + Test ôn bài hôm qua
+- **Thứ 7 (Saturday)**: Điểm danh + Bài học mới + Test ôn bài hôm qua
+- **Chủ nhật (Sunday)**:
+  - Tuần 1-3: Test tuần (tổng hợp nội dung đã học T2-T7)
+  - Tuần 4: Test tháng (tổng hợp nội dung đã học cả tháng) - Không có test tuần
+
+**Quy tắc:**
+
+- Bài học mới chỉ có từ T2-T7, Chủ nhật không có bài học mới
+- Test ôn bài chỉ có từ T3-CN, T2 không có
+- Test tuần chỉ có vào Chủ nhật tuần 1-3
+- Test tháng chỉ có vào Chủ nhật tuần 4 (thay thế test tuần)
+
 ### 3.1. Điểm danh & unlock quota ngày
 
 - API `POST /attendance/check-in` → upsert `user_daily_state` hôm nay:
   - **Kiểm tra `courseStartDate`**: User phải có `courseStartDate` được admin đặt trước khi có thể điểm danh
-  - **Tính toán ngày học**: Dựa trên `courseStartDate` và ngày hiện tại, tính số ngày đã trôi qua
+  - **Kiểm tra ngày trong tuần**: Chỉ cho phép điểm danh từ Thứ 2 đến Thứ 7 (Monday-Saturday). Chủ nhật không có bài học mới, chỉ có test tuần/tháng
+  - **Tính toán ngày học**: Dựa trên `courseStartDate` và ngày hiện tại, tính số ngày đã trôi qua (chỉ tính các ngày T2-T7)
   - **Phân phối nội dung không trùng lặp**:
     - Lấy tất cả `user_daily_state` trước đó để thu thập các ID đã được gán
     - Lọc ra các vocab/kanji/grammar chưa được gán
     - Gán 10 vocab, 5 kanji, 1 grammar mới (không trùng với các ngày trước)
   - **Xử lý ngày bỏ lỡ**: Nếu user bỏ lỡ ngày điểm danh, nội dung của ngày đó sẽ bị bỏ qua vĩnh viễn. Ngày tiếp theo sẽ nhận nội dung mới tiếp theo
-    - Ví dụ: Ngày 1 điểm danh → vocab 1-10, Ngày 2 bỏ lỡ → vocab 11-20 bị bỏ qua, Ngày 3 điểm danh → vocab 21-30
+    - Ví dụ: Ngày 1 (T2) điểm danh → vocab 1-10, Ngày 2 (T3) bỏ lỡ → vocab 11-20 bị bỏ qua, Ngày 3 (T4) điểm danh → vocab 21-30
   - `$setOnInsert`: `{ limits: {vocab:10,kanji:5,grammar:1}, used: {0,0,0}, assigned: {vocabIds[],kanjiIds[],grammarIds[]}, checkedInAt: nowJST }`
   - `$set`: `{ updatedAt: now }`
 
 - Tất cả cấp bài trong ngày yêu cầu: `checkedInAt != null`.
 
-### 3.2. Cấp 1 mục học (hoặc bắt đầu câu hỏi)
+### 3.2. Lấy items học trong ngày
 
-- `findOneAndUpdate` trên `user_daily_state` với điều kiện atomic:
-  - Filter: `{ userId, dateKey, checkedInAt: { $ne: null }, $expr: { $lt: ["$used.vocab", "$limits.vocab"] } }`
-  - Update: `$inc: { "used.vocab": 1 }, $set: { updatedAt: now }`
+- User có thể học tất cả items trong `assigned` sau khi check-in
+- Không cần track quota chính xác từng item đã học
+- `used` field trong `user_daily_state` chỉ để tham khảo, không enforce strict quota
 
-- Nếu trả về `null` → hết quota hoặc chưa check-in.
+### 3.3. Bài ôn tập hôm qua (Daily Review Test)
 
-### 3.3. Bài ôn tập hôm qua
+- **Lịch phân phối**: Test ôn bài được phân phối từ Thứ 3 đến Chủ nhật. Thứ 2 không có test ôn bài.
+- **Logic sinh test ôn bài**:
+  - Khi `check-in` hôm nay (T3-CN):
+    - Kiểm tra ngày hôm qua có phải là ngày học (T2-T7) không
+    - Nếu hôm qua là ngày học (T2-T7): Lấy items đã học **hôm qua** (từ `user_daily_state.assigned` của ngày hôm qua)
+    - Nếu hôm qua là Chủ nhật: Không sinh test ôn bài (vì Chủ nhật không có bài học mới)
+    - Upsert `user_assignments_daily_review` `{ userId, dateKey(today), sourceDateKey(yesterday) }` với `pools` chứa items từ ngày hôm qua
+  - **Quota test ôn bài**: Mỗi ngày có thể làm test ôn bài với giới hạn nhất định (có thể cấu hình trong `limit_learning`)
+  - **Tiêu hao quota**: Dùng atomic `findOneAndUpdate` với `$expr` để kiểm tra và tăng `used` (nếu cần track chính xác)
 
-- Khi `check-in` hôm nay:
-  - Lấy items đã học **hôm qua** (từ `user_attempts_*` hoặc `user_study_log`).
-  - Upsert `user_assignments_daily_review` `{ userId, dateKey }` với `sets` cố định trong ngày.
+### 3.4. Bài tuần (Weekly Test)
 
-### 3.4. Bài tuần
-
-- Đầu tuần (JST) hoặc khi user mở module tuần lần đầu:
-  - Tập hợp items đã học trong tuần (Mon–Sun) → chọn theo quota.
-  - Upsert `user_assignments_weekly` `{ userId, period }` + `sets` + `used`.
-  - Tiêu hao tương tự mục 3.2 (theo module tuần).
+- **Lịch phân phối**: Test tuần được phân phối vào Chủ nhật, trừ tuần thứ 4 của tháng (tuần thứ 4 sẽ có test tháng thay thế)
+- **Logic sinh test tuần**:
+  - Khi user mở module test tuần vào Chủ nhật:
+    - Kiểm tra tuần hiện tại có phải tuần thứ 4 của tháng không
+    - Nếu không phải tuần thứ 4: Tập hợp items đã học trong tuần (T2-T7 của tuần hiện tại) → chọn theo quota
+    - Upsert `user_assignments_weekly` `{ userId, period(YYYY-W##) }` + `pools` + `limits` + `used`
+    - Nếu là tuần thứ 4: Không sinh test tuần, thay vào đó sinh test tháng (xem mục 3.6)
+  - **Tiêu hao quota**: Dùng atomic `findOneAndUpdate` với `$expr` để kiểm tra và tăng `used` (nếu cần track chính xác)
 
 ### 3.5. Streak & leaderboard
 
 - Khi check-in, cập nhật `user_progress.streakDays` (so sánh `dateKey` với hôm trước).
 - Mỗi khi hoàn thành bài/đạt mốc → cộng XP, roll-up `leaderboard_rollups` theo `period` (daily/weekly/monthly key).
+
+### 3.6. Bài tháng (Monthly Test)
+
+- **Lịch phân phối**: Test tháng được phân phối vào Chủ nhật của tuần thứ 4 trong tháng (thay thế test tuần)
+- **Logic sinh test tháng**:
+  - Khi user mở module test tháng vào Chủ nhật của tuần thứ 4:
+    - Tính toán tháng hiện tại (YYYY-MM)
+    - Tập hợp items đã học trong tháng (từ tất cả các ngày T2-T7 trong tháng) → chọn theo quota
+    - Upsert `user_assignments_monthly` `{ userId, period(YYYY-MM) }` + `pools` + `limits` + `used`
+  - **Tiêu hao quota**: Dùng atomic `findOneAndUpdate` với `$expr` để kiểm tra và tăng `used` (nếu cần track chính xác)
+  - **Lưu ý**: Mỗi tháng chỉ có 1 test tháng, được tạo vào Chủ nhật tuần thứ 4
 
 ---
 
@@ -130,6 +173,8 @@
 ### Attendance & Daily State
 
 - `POST /attendance/check-in` → upsert `user_daily_state` hôm nay với nội dung không trùng lặp.
+  - Chỉ cho phép điểm danh từ Thứ 2 đến Thứ 7 (Monday-Saturday)
+  - Chủ nhật trả `400 { message: "Cannot check-in on Sunday. Sunday is for weekly/monthly tests." }`
 - `GET /attendance/status?dateKey=YYYY-MM-DD` → trả `{ limits, used, assigned, checkedInAt }` cho ngày cụ thể (mặc định hôm nay).
 - `GET /attendance/history?month=YYYY-MM` → trả danh sách các ngày đã điểm danh trong tháng `[{ dateKey, checkedAt }, ...]`.
 
@@ -151,7 +196,7 @@
 
 ### Study & Quota
 
-- `POST /study/consume` → tiêu hao quota (body: `{ module: "vocab"|"kanji"|"grammar" }`) → `200 { used }` | `409 QUOTA_EXCEEDED`
+- `GET /study/daily-state` → lấy trạng thái học hôm nay `{ limits, used, assigned, checkedInAt }`
 - `GET /study/items` → lấy items học hôm nay (query: `module`, `limit`) → trả items từ `assigned` hoặc random theo level
 - `GET /study/item/:id` → chi tiết 1 item (vocab/kanji/grammar) theo ID
 
@@ -166,13 +211,24 @@
 ### Assignments
 
 - `GET /assignments/daily-review/today` → gói ôn hôm qua hôm nay (từ `user_assignments_daily_review`)
+  - Chỉ trả về nếu hôm nay là T3-CN và hôm qua có bài học
+  - Thứ 2 trả `404 { message: "No daily review test on Monday." }`
 - `GET /assignments/daily-review/status` → trạng thái ôn hôm nay `{ pools, used, limits, status }`
 - `POST /assignments/daily-review/consume` → tiêu hao quota ôn hôm nay (body: `{ module }`)
 
 - `GET /assignments/weekly/current` → gói bài tuần hiện tại (từ `user_assignments_weekly`)
+  - Chỉ trả về nếu hôm nay là Chủ nhật và không phải tuần thứ 4
+  - Tuần thứ 4 trả `404 { message: "Weekly test not available in week 4. Monthly test is available instead." }`
 - `GET /assignments/weekly/:period` → gói bài tuần theo period `YYYY-W##`
 - `GET /assignments/weekly/status` → trạng thái bài tuần `{ pools, used, limits, status }`
 - `POST /assignments/weekly/consume` → tiêu hao quota bài tuần
+
+- `GET /assignments/monthly/current` → gói bài tháng hiện tại (từ `user_assignments_monthly`)
+  - Chỉ trả về nếu hôm nay là Chủ nhật của tuần thứ 4
+  - Các ngày khác trả `404 { message: "Monthly test is only available on Sunday of week 4." }`
+- `GET /assignments/monthly/:period` → gói bài tháng theo period `YYYY-MM`
+- `GET /assignments/monthly/status` → trạng thái bài tháng `{ pools, used, limits, status }`
+- `POST /assignments/monthly/consume` → tiêu hao quota bài tháng
 
 - `POST /assignments/custom` → tạo bài ôn custom (body: `{ title, sources[], settings{} }`)
 - `GET /assignments/custom` → danh sách bài custom của user
@@ -406,9 +462,11 @@ src/
 - [x] Xử lý ngày bỏ lỡ: Nếu bỏ lỡ ngày, nội dung ngày đó bị bỏ qua, ngày sau nhận nội dung tiếp theo
 - [x] API `GET /attendance/history` trả về danh sách ngày đã điểm danh
 - [x] Admin có thể xem và cập nhật `courseStartDate` cho users
-- [ ] Consume quota atomic: khi hết quota trả `409`
-- [ ] Sinh `user_assignments_daily_review` từ dữ liệu hôm qua
-- [ ] Sinh `user_assignments_weekly` đầu tuần (JST)
+- [x] Quota tracking: Không cần track quota chính xác từng item, user có thể học tất cả items trong `assigned`
+- [ ] Sinh `user_assignments_daily_review` từ dữ liệu hôm qua (T3-CN, không có T2)
+- [ ] Sinh `user_assignments_weekly` vào Chủ nhật (trừ tuần thứ 4)
+- [ ] Sinh `user_assignments_monthly` vào Chủ nhật tuần thứ 4 (thay thế test tuần)
+- [ ] Validation: Chỉ cho phép điểm danh T2-T7, Chủ nhật không có bài học mới
 - [ ] Ghi `user_attempts_*` khi nộp bài; lịch sử phân trang
 - [ ] Custom tests: tạo, bắt đầu, submit → xem kết quả
 - [ ] Leaderboard: lấy top N theo `period`
@@ -454,13 +512,15 @@ src/
 - [x] `GET /attendance/history?month=...` để lấy lịch sử điểm danh
 - [x] Validation `courseStartDate` trước khi cho phép điểm danh
 - [x] Logic xử lý ngày bỏ lỡ (missed days) - nội dung bị bỏ qua vĩnh viễn
-- [ ] `POST /study/consume` (atomic $expr/$inc)
+- [x] Endpoint `GET /study/daily-state` để lấy trạng thái học hôm nay
 
-### Milestone 4: Assignments ngày/tuần
+### Milestone 4: Assignments ngày/tuần/tháng
 
-- [ ] Service sinh `user_assignments_daily_review` (từ hôm qua)
-- [ ] Service sinh `user_assignments_weekly` (Mon–Sun JST)
-- [ ] Endpoint đọc các assignment tương ứng
+- [ ] Service sinh `user_assignments_daily_review` (từ hôm qua, T3-CN, không có T2)
+- [ ] Service sinh `user_assignments_weekly` (Chủ nhật, trừ tuần thứ 4)
+- [ ] Service sinh `user_assignments_monthly` (Chủ nhật tuần thứ 4, thay thế test tuần)
+- [ ] Endpoint đọc các assignment tương ứng với validation ngày trong tuần
+- [ ] Logic xác định tuần thứ 4 của tháng (JST)
 
 ### Milestone 5: Custom Tests & Achievements
 
@@ -527,11 +587,11 @@ Body: { courseStartDate: "2024-01-01" }
 → 200 { id, email, displayName, role, status, courseStartDate: "2024-01-01T00:00:00Z" }
 ```
 
-**Consume quota**
+**Get daily state**
 
 ```http
-POST /api/study/consume { module: "vocab" }
-→ 200 { used: { vocab: 4, ... } } | 409 { code: "QUOTA_EXCEEDED" }
+GET /api/study/daily-state
+→ 200 { limits: {vocab:10,kanji:5,grammar:1}, used: {vocab:0,kanji:0,grammar:0}, assigned: {vocabIds:[...],kanjiIds:[...],grammarIds:[...]}, checkedInAt }
 ```
 
 **Daily review hôm nay**
@@ -539,6 +599,23 @@ POST /api/study/consume { module: "vocab" }
 ```http
 GET /api/assignments/daily-review/today
 → 200 { pools: { vocabIds: [...], kanjiIds: [...], grammarIds: [...] }, used, limits, status }
+→ 404 { message: "No daily review test on Monday." } (nếu hôm nay là T2)
+```
+
+**Weekly test**
+
+```http
+GET /api/assignments/weekly/current
+→ 200 { pools: { vocabIds: [...], kanjiIds: [...], grammarIds: [...] }, used, limits, status, period: "2024-W01" }
+→ 404 { message: "Weekly test not available in week 4. Monthly test is available instead." } (nếu là tuần thứ 4)
+```
+
+**Monthly test**
+
+```http
+GET /api/assignments/monthly/current
+→ 200 { pools: { vocabIds: [...], kanjiIds: [...], grammarIds: [...] }, used, limits, status, period: "2024-01" }
+→ 404 { message: "Monthly test is only available on Sunday of week 4." } (nếu không phải Chủ nhật tuần thứ 4)
 ```
 
 **Submit test attempt**
