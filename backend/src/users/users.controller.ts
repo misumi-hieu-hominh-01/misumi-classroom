@@ -47,6 +47,7 @@ export class UsersController {
       displayName: user.displayName,
       role: user.role,
       status: user.status,
+      roomId: user.roomId,
       courseStartDate: user.courseStartDate,
     };
   }
@@ -66,6 +67,7 @@ export class UsersController {
       displayName: user.displayName,
       role: user.role,
       status: user.status,
+      roomId: user.roomId,
       courseStartDate: user.courseStartDate,
       createdAt: user.createdAt,
     }));
@@ -90,6 +92,7 @@ export class UsersController {
       displayName: user.displayName,
       role: user.role,
       status: user.status,
+      roomId: user.roomId,
       courseStartDate: user.courseStartDate,
     };
   }

@@ -30,4 +30,5 @@ export interface UserInfo {
   displayName: string;
   role: string;
   status: string;
+  roomId: string;
 }

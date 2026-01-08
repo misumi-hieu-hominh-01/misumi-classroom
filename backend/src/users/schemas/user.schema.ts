@@ -31,6 +31,9 @@ export class User {
   @Prop({ type: String, enum: UserRole, default: UserRole.USER })
   role: UserRole;
 
+  @Prop({ default: 'room1' })
+  roomId: string;
+
   @Prop()
   courseStartDate?: Date;
 

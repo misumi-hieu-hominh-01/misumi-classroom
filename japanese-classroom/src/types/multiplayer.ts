@@ -31,9 +31,9 @@ export interface ServerToClientEvents {
 }
 
 export interface ClientToServerEvents {
-	'join-room': (roomId: string, userData: { userId: string; username: string }) => void
+	'join-room': (data: { roomId: string; userData: { userId: string; username: string } }) => void
 	'leave-room': () => void
-	'player-move': (position: PlayerPosition, rotation: PlayerRotation, isMoving: boolean) => void
+	'player-move': (data: { position: PlayerPosition; rotation: PlayerRotation; isMoving: boolean }) => void
 }
 
 export interface MultiplayerState {

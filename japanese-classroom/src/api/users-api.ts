@@ -7,12 +7,14 @@ export interface User {
 	displayName: string;
 	role: string;
 	status: string;
+	roomId: string;
 	courseStartDate?: string;
 	createdAt?: string;
 }
 
 export interface UpdateUserDto {
 	displayName?: string;
+	roomId?: string;
 	courseStartDate?: string;
 }
 

@@ -14,6 +14,12 @@ export class UpdateUserDto {
   displayName?: string;
 
   @IsOptional()
+  @IsString()
+  @MinLength(1, { message: 'Room ID must not be empty' })
+  @MaxLength(50, { message: 'Room ID must not exceed 50 characters' })
+  roomId?: string;
+
+  @IsOptional()
   @IsDateString()
   courseStartDate?: string;
 }

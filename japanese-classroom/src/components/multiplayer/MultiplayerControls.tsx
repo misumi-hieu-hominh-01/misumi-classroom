@@ -1,11 +1,12 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Button } from '@nextui-org/react'
-import { Input } from '@nextui-org/react'
 import { Card, CardBody, CardHeader } from '@nextui-org/react'
 import { Chip } from '@nextui-org/react'
 import { useMultiplayer } from '@/contexts/MultiplayerContext'
+import { useQuery } from '@tanstack/react-query'
+import { usersApi } from '@/api/users-api'
 
 export function MultiplayerControls() {
 	const {
@@ -19,21 +20,25 @@ export function MultiplayerControls() {
 		leaveRoom
 	} = useMultiplayer()
 
-	const [roomId, setRoomId] = useState('classroom-1')
-	const [username, setUsername] = useState('')
 	const [isVisible, setIsVisible] = useState(true)
 
-	const handleJoinRoom = () => {
-		if (!username.trim()) {
-			alert('Vui lòng nhập tên người chơi')
-			return
-		}
+	// Lấy thông tin user hiện tại
+	const { data: userInfo } = useQuery({
+		queryKey: ['user-info'],
+		queryFn: () => usersApi.getCurrentUser(),
+		retry: false
+	})
 
-		joinRoom(roomId, {
-			userId: `user-${Date.now()}`, // Temporary user ID
-			username: username.trim()
-		})
-	}
+	// Tự động join room khi có user info và đã connected
+	useEffect(() => {
+		if (isConnected && userInfo && !currentRoom && !isJoining) {
+			// Auto join với roomId và displayName từ user account
+			joinRoom(userInfo.roomId, {
+				userId: userInfo.id,
+				username: userInfo.displayName
+			})
+		}
+	}, [isConnected, userInfo, currentRoom, isJoining, joinRoom])
 
 	const handleLeaveRoom = () => {
 		leaveRoom()
@@ -106,39 +111,31 @@ export function MultiplayerControls() {
 		return (
 			<Card className="w-80 bg-white shadow-lg border border-gray-200">
 				<CardHeader>
-					<h3 className="text-lg font-semibold">Tham gia Multiplayer</h3>
+					<h3 className="text-lg font-semibold">Multiplayer</h3>
 				</CardHeader>
 				<CardBody className="space-y-3">
-					<div className="flex items-center gap-2 mb-3">
+					<div className="flex items-center gap-2">
 						<div className="w-2 h-2 bg-green-500 rounded-full" />
 						<span className="text-sm text-gray-600">Đã kết nối server</span>
 					</div>
 
-					<Input
-						label="Tên người chơi"
-						placeholder="Nhập tên của bạn"
-						value={username}
-						onChange={(e) => setUsername(e.target.value)}
-						size="sm"
-					/>
-
-					<Input
-						label="ID Phòng"
-						placeholder="classroom-1"
-						value={roomId}
-						onChange={(e) => setRoomId(e.target.value)}
-						size="sm"
-					/>
-
-					<Button
-						color="primary"
-						onClick={handleJoinRoom}
-						isLoading={isJoining}
-						disabled={!username.trim() || !roomId.trim()}
-						className="w-full"
-					>
-						{isJoining ? 'Đang tham gia...' : 'Tham gia phòng'}
-					</Button>
+					{userInfo ? (
+						<>
+							<div className="p-3 bg-blue-50 rounded-lg border border-blue-200">
+								<p className="text-sm text-gray-600">Đang tự động join phòng...</p>
+								<p className="text-xs text-gray-500 mt-1">
+									Phòng: <strong>{userInfo.roomId}</strong>
+								</p>
+								<p className="text-xs text-gray-500">
+									Tên: <strong>{userInfo.displayName}</strong>
+								</p>
+							</div>
+						</>
+					) : (
+						<div className="p-3 bg-gray-50 rounded-lg border border-gray-200">
+							<p className="text-sm text-gray-600">Đang tải thông tin...</p>
+						</div>
+					)}
 
 					{error && (
 						<div className="p-2 bg-red-100 border border-red-300 rounded text-red-700 text-sm">

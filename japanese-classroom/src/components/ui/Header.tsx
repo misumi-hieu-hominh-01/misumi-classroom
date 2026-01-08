@@ -14,7 +14,7 @@ export default function Header() {
 
   return (
     <>
-      <header className="fixed top-0 left-0 right-0 z-50 bg-transparent">
+      <header className="fixed top-0 w-fit right-0 z-50 bg-transparent">
         <div className="flex items-center justify-end p-4 gap-3">
           {isAuthenticated && user ? (
             <>
