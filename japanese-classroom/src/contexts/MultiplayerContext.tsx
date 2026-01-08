@@ -13,6 +13,7 @@ import {
 
 interface MultiplayerContextType extends MultiplayerState {
 	socket: Socket<ServerToClientEvents, ClientToServerEvents> | null
+	latency: number // Real ping latency in milliseconds
 	joinRoom: (roomId: string, userData: { userId: string; username: string }) => void
 	leaveRoom: () => void
 	updatePlayerPosition: (position: PlayerPosition, rotation: PlayerRotation, isMoving: boolean) => void
@@ -36,6 +37,9 @@ export function MultiplayerProvider({ children, serverUrl = 'http://localhost:40
 		isJoining: false,
 		error: null
 	})
+	const [latency, setLatency] = useState<number>(0)
+	const pingIntervalRef = useRef<NodeJS.Timeout | null>(null)
+	const pingStartTimeRef = useRef<number>(0)
 
 	// Initialize socket connection
 	useEffect(() => {
@@ -135,10 +139,39 @@ export function MultiplayerProvider({ children, serverUrl = 'http://localhost:40
 			setState(prev => ({ ...prev, error: message }))
 		})
 
+		// Ping/Pong mechanism for real latency measurement
+		socket.on('pong', () => {
+			const endTime = Date.now()
+			const roundTripTime = endTime - pingStartTimeRef.current
+			setLatency(roundTripTime)
+		})
+
+		// Start ping interval (every 2 seconds)
+		const startPingInterval = () => {
+			if (pingIntervalRef.current) {
+				clearInterval(pingIntervalRef.current)
+			}
+			
+			pingIntervalRef.current = setInterval(() => {
+				if (socket.connected) {
+					pingStartTimeRef.current = Date.now()
+					socket.emit('ping')
+				}
+			}, 2000) // Ping every 2 seconds
+		}
+
 		// Connect to server
 		socket.connect()
 
+		// Start ping when connected
+		socket.on('connect', () => {
+			startPingInterval()
+		})
+
 		return () => {
+			if (pingIntervalRef.current) {
+				clearInterval(pingIntervalRef.current)
+			}
 			socket.disconnect()
 		}
 	}, [serverUrl])
@@ -198,6 +231,7 @@ export function MultiplayerProvider({ children, serverUrl = 'http://localhost:40
 	const contextValue: MultiplayerContextType = {
 		...state,
 		socket: socketRef.current,
+		latency,
 		joinRoom,
 		leaveRoom,
 		updatePlayerPosition,

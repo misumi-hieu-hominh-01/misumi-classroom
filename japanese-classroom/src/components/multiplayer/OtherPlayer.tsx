@@ -4,7 +4,7 @@ import { useRef, useEffect, useMemo, useState, memo } from "react";
 import { useFrame } from "@react-three/fiber";
 import { useGLTF, useAnimations, Text } from "@react-three/drei";
 import { Group, Vector3, AnimationClip } from "three";
-import * as SkeletonUtils from "three/examples/jsm/utils/SkeletonUtils";
+import * as SkeletonUtils from "three/addons/utils/SkeletonUtils.js";
 import { PlayerData } from "@/types/multiplayer";
 import { calculateHeight } from "../scene/CollisionSystem";
 
@@ -250,9 +250,9 @@ function OtherPlayerComponent({ player }: OtherPlayerProps) {
         </group>
       )}
 
-      {/* Username label using drei Text */}
+      {/* Username label using drei Text - positioned above head */}
       <Text
-        position={[0, 2.5, 0]}
+        position={[0, 4.7, 0]}
         fontSize={0.3}
         color="white"
         anchorX="center"

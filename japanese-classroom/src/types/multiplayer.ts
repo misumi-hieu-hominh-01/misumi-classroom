@@ -27,6 +27,7 @@ export interface ServerToClientEvents {
 	'player-moved': (playerId: string, position: PlayerPosition, rotation: PlayerRotation, isMoving: boolean) => void
 	'players-list': (players: PlayerData[]) => void
 	'room-joined': (roomId: string, players: PlayerData[]) => void
+	'pong': () => void // Response to ping for latency measurement
 	error: (message: string) => void
 }
 
@@ -34,6 +35,7 @@ export interface ClientToServerEvents {
 	'join-room': (data: { roomId: string; userData: { userId: string; username: string } }) => void
 	'leave-room': () => void
 	'player-move': (data: { position: PlayerPosition; rotation: PlayerRotation; isMoving: boolean }) => void
+	'ping': () => void // Ping request for latency measurement
 }
 
 export interface MultiplayerState {
