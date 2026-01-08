@@ -4,6 +4,7 @@ import { useRef, useMemo, useEffect, useState } from "react";
 import { useFrame } from "@react-three/fiber";
 import { useGLTF, useAnimations } from "@react-three/drei";
 import { Group, Vector3, AnimationClip } from "three";
+import * as SkeletonUtils from "three/examples/jsm/utils/SkeletonUtils";
 import {
   findNearestValidPosition,
   calculateHeight,
@@ -62,30 +63,42 @@ export default function StickMan({
   const walkingModel = useGLTF("/animation/walking.glb");
   const runningModel = useGLTF("/animation/running.glb");
 
-  // Process animations để remove root motion cho walking và running models
+  // Clone scenes để mỗi StickMan có instance riêng (tránh share skeleton/material)
+  const clonedScenes = useMemo(() => {
+    return {
+      idle: SkeletonUtils.clone(idleModel.scene) as Group,
+      walking: SkeletonUtils.clone(walkingModel.scene) as Group,
+      running: SkeletonUtils.clone(runningModel.scene) as Group,
+    };
+  }, [idleModel.scene, walkingModel.scene, runningModel.scene]);
+
+  // Process animations (CLONE clips) để remove root motion cho walking và running
   const processedWalkingAnimations = useMemo(() => {
-    if (!walkingModel.animations.length) return walkingModel.animations;
-
-    walkingModel.animations.forEach((clip) => {
-      removeRootMotion(clip, "mixamorigHips");
+    if (!walkingModel.animations.length) return [];
+    return walkingModel.animations.map((clip) => {
+      const clonedClip = clip.clone();
+      removeRootMotion(clonedClip, "mixamorigHips");
+      return clonedClip;
     });
-
-    return walkingModel.animations;
   }, [walkingModel.animations]);
 
   const processedRunningAnimations = useMemo(() => {
-    if (!runningModel.animations.length) return runningModel.animations;
-
-    runningModel.animations.forEach((clip) => {
-      removeRootMotion(clip, "mixamorigHips");
+    if (!runningModel.animations.length) return [];
+    return runningModel.animations.map((clip) => {
+      const clonedClip = clip.clone();
+      removeRootMotion(clonedClip, "mixamorigHips");
+      return clonedClip;
     });
-
-    return runningModel.animations;
   }, [runningModel.animations]);
+
+  const clonedIdleAnimations = useMemo(() => {
+    if (!idleModel.animations.length) return [];
+    return idleModel.animations.map((clip) => clip.clone());
+  }, [idleModel.animations]);
 
   // Sử dụng animations cho từng model với ref riêng biệt
   const { actions: idleActions, names: idleNames } = useAnimations(
-    idleModel.animations,
+    clonedIdleAnimations,
     idleGroup
   );
   const { actions: walkingActions, names: walkingNames } = useAnimations(
@@ -360,21 +373,29 @@ export default function StickMan({
       {/* Hiển thị idle model với Y offset riêng */}
       {!isWalking && !isRunning && (
         <group ref={idleGroup} position={[0, 0.1, 0]}>
-          <primitive object={idleModel.scene} scale={scale} />
+          <primitive object={clonedScenes.idle} scale={scale} dispose={null} />
         </group>
       )}
 
       {/* Hiển thị walking model với Y offset riêng */}
       {isWalking && !isRunning && (
         <group ref={walkingGroup} position={[0, -1.2, 0]}>
-          <primitive object={walkingModel.scene} scale={scale} />
+          <primitive
+            object={clonedScenes.walking}
+            scale={scale}
+            dispose={null}
+          />
         </group>
       )}
 
       {/* Hiển thị running model với Y offset riêng */}
       {isRunning && (
         <group ref={runningGroup} position={[0, -1.2, 0]}>
-          <primitive object={runningModel.scene} scale={scale} />
+          <primitive
+            object={clonedScenes.running}
+            scale={scale}
+            dispose={null}
+          />
         </group>
       )}
     </group>

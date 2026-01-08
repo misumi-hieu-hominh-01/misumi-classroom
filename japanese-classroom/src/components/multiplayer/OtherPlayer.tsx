@@ -4,7 +4,7 @@ import { useRef, useEffect, useMemo, useState, memo } from "react";
 import { useFrame } from "@react-three/fiber";
 import { useGLTF, useAnimations, Text } from "@react-three/drei";
 import { Group, Vector3, AnimationClip } from "three";
-import * as THREE from "three";
+import * as SkeletonUtils from "three/examples/jsm/utils/SkeletonUtils";
 import { PlayerData } from "@/types/multiplayer";
 import { calculateHeight } from "../scene/CollisionSystem";
 
@@ -37,9 +37,9 @@ function OtherPlayerComponent({ player }: OtherPlayerProps) {
   // Clone scenes để mỗi player có instance riêng - CRITICAL for multiple players
   const clonedScenes = useMemo(() => {
     return {
-      idle: idleModelSource.scene.clone(true),
-      walking: walkingModelSource.scene.clone(true),
-      running: runningModelSource.scene.clone(true),
+      idle: SkeletonUtils.clone(idleModelSource.scene) as Group,
+      walking: SkeletonUtils.clone(walkingModelSource.scene) as Group,
+      running: SkeletonUtils.clone(runningModelSource.scene) as Group,
     };
   }, [
     idleModelSource.scene,
@@ -188,48 +188,10 @@ function OtherPlayerComponent({ player }: OtherPlayerProps) {
     animationNames,
   ]);
 
-  // Cleanup cloned scenes on unmount để tránh memory leak
-  useEffect(() => {
-    return () => {
-      // Dispose cloned scenes để free memory
-      clonedScenes.idle.traverse((child) => {
-        if ("geometry" in child && child.geometry)
-          (child.geometry as THREE.BufferGeometry).dispose();
-        if ("material" in child && child.material) {
-          const material = child.material as THREE.Material | THREE.Material[];
-          if (Array.isArray(material)) {
-            material.forEach((mat) => mat.dispose());
-          } else {
-            material.dispose();
-          }
-        }
-      });
-      clonedScenes.walking.traverse((child) => {
-        if ("geometry" in child && child.geometry)
-          (child.geometry as THREE.BufferGeometry).dispose();
-        if ("material" in child && child.material) {
-          const material = child.material as THREE.Material | THREE.Material[];
-          if (Array.isArray(material)) {
-            material.forEach((mat) => mat.dispose());
-          } else {
-            material.dispose();
-          }
-        }
-      });
-      clonedScenes.running.traverse((child) => {
-        if ("geometry" in child && child.geometry)
-          (child.geometry as THREE.BufferGeometry).dispose();
-        if ("material" in child && child.material) {
-          const material = child.material as THREE.Material | THREE.Material[];
-          if (Array.isArray(material)) {
-            material.forEach((mat) => mat.dispose());
-          } else {
-            material.dispose();
-          }
-        }
-      });
-    };
-  }, [clonedScenes]);
+  // NOTE: Don't dispose cloned scenes manually.
+  // The cloned skinned meshes typically share geometries/materials coming from
+  // the GLTF cache. Manual dispose can break other instances and cause models
+  // to disappear while labels remain.
 
   // Smooth interpolation to target position
   useFrame(() => {
@@ -262,21 +224,29 @@ function OtherPlayerComponent({ player }: OtherPlayerProps) {
       {/* Idle model - using cloned scene */}
       {!isWalking && !isRunning && (
         <group ref={idleGroup} position={[0, 0.1, 0]}>
-          <primitive object={clonedScenes.idle} scale={scale} />
+          <primitive object={clonedScenes.idle} scale={scale} dispose={null} />
         </group>
       )}
 
       {/* Walking model - using cloned scene */}
       {isWalking && !isRunning && (
         <group ref={walkingGroup} position={[0, -1.2, 0]}>
-          <primitive object={clonedScenes.walking} scale={scale} />
+          <primitive
+            object={clonedScenes.walking}
+            scale={scale}
+            dispose={null}
+          />
         </group>
       )}
 
       {/* Running model - using cloned scene */}
       {isRunning && (
         <group ref={runningGroup} position={[0, -1.2, 0]}>
-          <primitive object={clonedScenes.running} scale={scale} />
+          <primitive
+            object={clonedScenes.running}
+            scale={scale}
+            dispose={null}
+          />
         </group>
       )}
 

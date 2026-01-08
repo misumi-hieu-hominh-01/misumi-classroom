@@ -57,6 +57,12 @@ function ClassroomSceneContent({ onExitClassroom }: ClassroomSceneProps) {
   );
   const [stickmanRotation, setStickmanRotation] = useState(Math.PI);
   const [isStickmanMoving, setIsStickmanMoving] = useState(false);
+  const lastLocalStateRef = useRef({
+    position: new Vector3(-3.0, -1.2, 1.2),
+    rotation: Math.PI,
+    isMoving: false,
+  });
+  const lastMultiplayerSentAtRef = useRef(0);
   const [cameraMode, setCameraMode] = useState<
     "first-person" | "third-person" | "free"
   >("third-person");
@@ -294,18 +300,40 @@ function ClassroomSceneContent({ onExitClassroom }: ClassroomSceneProps) {
     rotation: number,
     isMoving: boolean
   ) => {
-    setStickmanPosition(position.clone());
-    setStickmanRotation(rotation);
-    setIsStickmanMoving(isMoving);
+    // Avoid re-rendering the whole scene every frame when nothing changed.
+    // This also reduces 3D remount churn that can lead to flicker/glitches.
+    const lastLocal = lastLocalStateRef.current;
 
-    // Send position to multiplayer server if connected
-    if (currentRoom) {
-      updatePlayerPosition(
-        { x: position.x, y: position.y, z: position.z },
-        { x: 0, y: rotation, z: 0 },
-        isMoving
-      );
+    const posChanged = position.distanceToSquared(lastLocal.position) > 1e-6;
+    const rotChanged = Math.abs(rotation - lastLocal.rotation) > 1e-4;
+    const movingChanged = isMoving !== lastLocal.isMoving;
+
+    if (posChanged) {
+      setStickmanPosition(position.clone());
+      lastLocal.position.copy(position);
     }
+    if (rotChanged) {
+      setStickmanRotation(rotation);
+      lastLocal.rotation = rotation;
+    }
+    if (movingChanged) {
+      setIsStickmanMoving(isMoving);
+      lastLocal.isMoving = isMoving;
+    }
+
+    // Throttle multiplayer updates to reduce jitter and duplicate ghosts.
+    const shouldSend = posChanged || rotChanged || movingChanged;
+    if (!currentRoom || !shouldSend) return;
+
+    const now = performance.now();
+    if (now - lastMultiplayerSentAtRef.current < 50) return;
+    lastMultiplayerSentAtRef.current = now;
+
+    updatePlayerPosition(
+      { x: position.x, y: position.y, z: position.z },
+      { x: 0, y: rotation, z: 0 },
+      isMoving
+    );
   };
 
   // Check for nearby interactable seats and teacher, and exit condition
